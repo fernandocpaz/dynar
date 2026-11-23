@@ -78,7 +78,7 @@ func newModel(ctx context.Context,c Config) model {
         ctx:ctx,config:c,store:logs.NewStore(c.BufferLines),
         groups:map[string][]logs.Event{},offsets:map[string]int{},
         width:120,height:35,following:true,loading:true,
-        search:c.InitialSearch, nextFrom:now.Add(-c.Since),nextTo:now,
+        search:c.InitialSearch, onlyMatches:c.InitialSearch!="", nextFrom:now.Add(-c.Since),nextTo:now,
     }
     m.setPattern(c.InitialSearch)
     return m
@@ -137,7 +137,7 @@ func(m model) Update(msg tea.Msg)(tea.Model,tea.Cmd){
             case "esc":m.searching=false;m.draft=m.search;m.searchError=""
             case "enter":
                 if m.setPattern(m.draft){
-                    m.search=m.draft;m.searching=false;m.searchError=""
+                    m.search=m.draft;m.onlyMatches=m.search!="";m.searching=false;m.searchError=""
                     m.resetOffsets()
                 }else{m.searchError="Invalid regular expression"}
             case "backspace", "ctrl+h":
@@ -176,17 +176,13 @@ func(m model) Update(msg tea.Msg)(tea.Model,tea.Cmd){
         case "down","j":
             if m.focus||m.combined{m.scroll(-1)} else if len(m.services)>0{m.selected=(m.selected+1)%len(m.services)}
         case "pgup":
-            if m.focus||m.combined{m.scroll(max(1,m.height-8))}
-            else if len(m.services)>0{m.selected=max(0,m.selected-m.pageSize())}
+            if m.focus||m.combined{m.scroll(max(1,m.height-8))} else if len(m.services)>0{m.selected=max(0,m.selected-m.pageSize())}
         case "pgdown":
-            if m.focus||m.combined{m.scroll(-max(1,m.height-8))}
-            else if len(m.services)>0{m.selected=min(len(m.services)-1,m.selected+m.pageSize())}
+            if m.focus||m.combined{m.scroll(-max(1,m.height-8))} else if len(m.services)>0{m.selected=min(len(m.services)-1,m.selected+m.pageSize())}
         case "home":
-            if m.focus||m.combined{m.offsets[m.activeName()]=len(m.activeEvents())}
-            else{m.selected=0}
+            if m.focus||m.combined{m.offsets[m.activeName()]=m.totalLines(m.activeEvents())} else{m.selected=0}
         case "end":
-            if m.focus||m.combined{m.offsets[m.activeName()]=0}
-            else if len(m.services)>0{m.selected=len(m.services)-1}
+            if m.focus||m.combined{m.offsets[m.activeName()]=0} else if len(m.services)>0{m.selected=len(m.services)-1}
         case " ":
             m.following=!m.following
             if m.following && !m.loading {
@@ -306,8 +302,7 @@ func(m model) View()string{
         if m.onlyMatches && m.search!=""{state="Matching only"}
         if m.search!=""{state+="  / "+m.search}
         if m.errorsOnly{state+="  [ERRORS ONLY]"}
-        if m.focus||m.combined{state+="   ↑↓ scroll  PgUp/PgDn  Esc grid"}
-        else {state+="   ←→ switch services"}
+        if m.focus||m.combined{state+="   ↑↓ scroll  PgUp/PgDn  Esc grid"} else {state+="   ←→ switch services"}
         foot=state
     }
     foot=shorten(logs.SafeText(foot),m.width)
@@ -345,7 +340,7 @@ func(m model) gridView()string{
     if len(m.services)==0{
         status:="Waiting for accessible namespace logs..."
         if !m.loading && m.lastError==""{status="No logs returned for the selected namespace/time range"}
-        return m.panel("NO SERVICES",nil,m.width,max(7,m.height-5),false)+"\n"+mutedStyle.Render(status)
+        return m.panel(status,nil,m.width,max(7,m.height-5),false)
     }
     cols,rows,height,perPage:=m.gridDimensions()
     first:=(m.selected/perPage)*perPage
@@ -369,6 +364,14 @@ func(m model) gridView()string{
     }
     return strings.Join(rendered,"\n")
 }
+func(m model) totalLines(events []logs.Event)int{
+    width:=max(12,m.width-4)
+    sum:=0
+    for _,e:=range events{
+        if m.visible(e){sum+=len(formatEvent(e,width,m.combined,false))}
+    }
+    return sum
+}
 func(m model) panel(name string,events []logs.Event,width,height int,selected bool)string{
     inner:=max(12,width-4)
     bodyHeight:=max(3,height-3)
@@ -379,23 +382,20 @@ func(m model) panel(name string,events []logs.Event,width,height int,selected bo
     if name=="ALL"{label="ALL SERVICES"}
     title:=fmt.Sprintf("%s  [%d/%d]",label,visibleCount,len(events))
     title=shorten(logs.SafeText(title),inner)
-    if selected {title=highlightStyle.Bold(true).Render(title)}
-    else {title=headerStyle.Render(title)}
+    if selected {title=highlightStyle.Bold(true).Render(title)} else {title=headerStyle.Render(title)}
     offset:=m.offsets[name]
-    skipped:=0
-    blocks:=make([][]string,0,bodyHeight)
-    used:=0
-    for i:=len(events)-1;i>=0 && used<bodyHeight;i--{
+    reverse:=make([]string,0,bodyHeight)
+    for i:=len(events)-1;i>=0 && len(reverse)<bodyHeight;i--{
         e:=events[i]
         if !m.visible(e){continue}
-        if skipped<offset {skipped++;continue}
         lines:=formatEvent(e,inner,name=="ALL",m.search!=""&&m.matches(e))
-        blocks=append(blocks,lines)
-        used+=len(lines)
+        for j:=len(lines)-1;j>=0 && len(reverse)<bodyHeight;j--{
+            if offset>0{offset--;continue}
+            reverse=append(reverse,lines[j])
+        }
     }
     display:=make([]string,0,bodyHeight)
-    for i:=len(blocks)-1;i>=0;i--{display=append(display,blocks[i]...)}
-    if len(display)>bodyHeight{display=display[len(display)-bodyHeight:]}
+    for i:=len(reverse)-1;i>=0;i--{display=append(display,reverse[i])}
     for len(display)<bodyHeight{display=append(display,"")}
     content:=title+"\n"+strings.Join(display,"\n")
     border:=lipgloss.AdaptiveColor{Light:"#737C83",Dark:"#4B5563"}
