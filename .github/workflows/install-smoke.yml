@@ -1,0 +1,33 @@
+name: Verify published Go installer
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  install:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install released module in clean Go environment
+        shell: bash
+        env:
+          RELEASE: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          for n in 1 2 3 4; do
+            if go install "github.com/fernandocpaz/dynar/cmd/dynar@${RELEASE}"; then
+              break
+            fi
+            if [ "$n" = 4 ]; then exit 1; fi
+            sleep 15
+          done
+          suffix=""
+          if [ "$RUNNER_OS" = "Windows" ]; then suffix=".exe"; fi
+          "$(go env GOPATH)/bin/dynar${suffix}" version

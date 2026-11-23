@@ -51,7 +51,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: go mod tidy
+      - name: Resolve Go dependencies
+        shell: bash
+        run: |
+          if ! go mod tidy; then
+            echo "::warning::Public Go checksum service may still be indexing the newly published tailg tag. Bypassing it only for the user-owned tailg module."
+            GONOSUMDB=github.com/fernandocpaz/tailg go mod tidy
+          fi
       - name: Linux race tests
         if: runner.os == 'Linux'
         run: go test -race ./...
@@ -78,7 +84,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: go mod tidy
+      - name: Resolve Go dependencies
+        shell: bash
+        run: |
+          if ! go mod tidy; then
+            echo "::warning::Public Go checksum service may still be indexing the newly published tailg tag. Bypassing it only for the user-owned tailg module."
+            GONOSUMDB=github.com/fernandocpaz/tailg go mod tidy
+          fi
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}

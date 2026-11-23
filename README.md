@@ -27,26 +27,41 @@ dynar -n apollo --no-update-check   # disable automatic startup check
 
 Set `DYNAR_NO_UPDATE_CHECK=1` to disable checks by default. Updates require a writable install directory. Standalone snapshots and redirected output never prompt. Development builds do not offer automatic updates. Published releases include binaries for Linux, Windows, and macOS where supported; existing source credentials/configuration are not modified.
 
-## Terminal UI: one panel per service
+## Terminal UI — the actual tailg picker and log viewer
 
-In an interactive terminal, `dynar -n apollo` opens tailg's workload picker, then tailg's real full-screen log viewer for the selected workload(s). Select several with Space; use Enter to open.  It loads all logs using one namespace-wide Grail query, then automatically groups by `k8s.workload.name`, deployment, StatefulSet/DaemonSet/Job, container, or inferred pod workload. The shared log viewer formats Serilog/JSON, colored ERR/WRN/INF severity, timestamps, and multiline exceptions using tailg's production renderer. Terminal widths determine whether panels appear in one, two or three columns. Tab selects a workload; Enter maximizes it for scrolling.
+Running `dynar -n apollo` queries all accessible logs in the namespace once,
+then opens the **real tailg workload picker**. Use Up/Down to navigate, Space
+to select multiple services, and Enter to open their log streams. The viewer
+is tailg's production terminal implementation, not the old DynaR prototype
+grid. Logs are formatted using tailg's original Serilog, JSON, date grouping,
+severity colors, exception details and wrapping.
 
 | Key | Behavior |
 | --- | --- |
-| Tab / Shift+Tab | Select next / previous service |
-| Enter / Esc | Maximize service / return to grid |
-| A | Combined timeline across all services |
-| / | Search across all services and trace IDs |
-| F1 | Toggle only matching messages |
-| F3 | Toggle errors only |
-| C | Clear search |
-| Up/Down / PgUp/PgDn | Scroll in maximized view; select or paginate in grid |
-| Space / R | Pause/resume live polling / refresh now |
-| Q / ? | Quit / keyboard help |
+| Up/Down, Space, Enter | Picker navigation, multi-select, open selected workloads |
+| Type in filter bar | Search live and retained history using tailg's exact query syntax |
+| F1 | Toggle matches-only / surrounding context |
+| F3 | Open full ERR/FTL history for the selected pod |
+| F5 | Heartbeat analysis |
+| F6 | Trace correlation |
+| F8 | Issue radar |
+| F9 | Traffic and latency analytics / charts |
+| F10 | Security radar |
+| S | Security assessment for the selected log |
+| Enter | Open the highlighted full log detail |
+| A (in detail) | AI explanation (if configured and explicitly invoked) |
+| Esc | Close current detail/diagnostic view |
+| Q / Ctrl+C | Leave viewer; return to picker or exit |
 
-`--search` initially restricts displayed messages in UI; F1 toggles between all messages (matches highlighted) and matching-only. Use `--no-ui` for traditional streaming, or `--once --group` to print a static service-by-service report. Redirected output and NDJSON always use noninteractive mode, preserving automation.
+The picker F action for live-only recording is being brought across as a
+separate adapter feature. `--all` intentionally skips the workload picker and
+opens one combined timeline. `--no-ui`, `--once --group`, and redirected
+NDJSON output remain available for automation.
 
-The terminal will never silently claim full log coverage: query limits, sampling, permissions, and missing namespace attributes still apply. The UI shows the latest query warning.
+In interactive mode, `--search` preloads a tailg filter; `--regex --search`
+uses tailg's regular-expression include mechanism. `F1` changes the
+match/context display. Only logs ingested and accessible in Dynatrace can be
+displayed; retention, permissions, sampling and query budgets still apply.
 
 The token must have permission to query Grail logs, including `storage:logs:read` and applicable bucket read permissions. A Dynatrace **platform token** or OAuth2 access token works with the Platform Query API; classic `Api-Token` credentials do not. Keep tokens out of source control and command-line arguments. An alternative is OAuth client credentials, configured using `DYNAR_PROD_CLIENT_ID` and `DYNAR_PROD_CLIENT_SECRET`.
 
@@ -105,4 +120,54 @@ Interactive mode uses `github.com/fernandocpaz/tailg/pkg/logui`. DynaR queries G
 
 The exact tailg log-viewer shortcuts replace DynaR's former prototype grid shortcuts. In particular, F1 filters matches, F3 opens retained error logs, F5 shows heartbeat analysis, F8 issues, F9 analytics/charts, F10 security, and F6 traces. The workload picker uses Space multi-select and Enter open. `--all` skips the picker. Full-history searches use the selected `--since` window and fail visibly if query completeness cannot be confirmed.
 
-Kubernetes-only picker actions (pod commands, CronJob execution, node diagnostics, ConfigMaps/Secrets, pod metrics, network inspection) are disabled in the Dynatrace provider. No `kubectl` is required. The original separate prototype UI remains in the codebase only for reference and is not invoked by default.
+Kubernetes-only picker actions (pod commands, CronJob execution, node diagnostics, ConfigMaps/Secrets, pod metrics, network inspection) are disabled in the Dynatrace provider. No `kubectl` is required. The original standalone prototype UI has been retired; tailg's shared viewer is the only interactive log implementation.
+
+## Search and analysis parity
+
+DynaR uses tailg's native filter/query parser for both live logs and historical
+results. Type in the search bar to use expressions such as
+`level:ERR service:encounter`, `trace:<32-char-id>` or `status:>=500`.
+`dynar -n apollo --search "timeout"` initializes that filter. With
+`--regex --search "timeout|failed"`, DynaR uses tailg's include-regex
+formatter instead. `--since` controls the bounded historical lookup.
+
+The F3 error inspector now retains stack frames split into multiple Grail
+records using tailg's original exception continuation rules.
+
+AI analysis is opt-in per selected log and uses the same provider configuration
+and source-repository mapping already configured for tailg
+(`TAILG_AI_*` and tailg's owner-restricted saved settings). No Dynatrace logs
+are sent to an AI provider unless the operator explicitly invokes an AI action.
+
+## F-key live log recording
+
+In the actual tailg workload picker, highlight a service or select multiple with
+Space, then press **F**. DynaR creates a timestamp-suffixed `dynar_*.ndjson`
+file in the working directory and opens the shared tailg log viewer. The file
+records only events timestamped **at or after the F keypress**; the initial
+historical buffer is not written. Captures contain original raw messages,
+workload, pod, container, timestamp, level, trace ID, and request ID, intended
+for downstream AI investigation. Tailg's in-view recording path can be copied.
+
+## Windows Terminal split panes (tailg-compatible)
+
+```powershell
+dynar -n apollo --split-panes
+```
+
+Pick several workloads with Space and press Enter. DynaR opens one Windows
+Terminal pane per selected service with the same alternating vertical/horizontal
+split arrangement as tailg. Each pane preserves the configured Dynatrace source,
+cluster, lookback and search settings, with its own tailg log viewer.
+
+Like tailg's separate-process panes, **each DynaR pane queries Dynatrace
+independently**. For high-volume namespaces, opening a single multi-service
+session is more API-efficient. The split feature requires Windows Terminal
+(`wt.exe`) and Windows; WSL/Linux/macOS continue using the shared in-process
+log viewer.
+
+Split panes share a single tailg filter-state file, so typing a live filter and
+pressing F1 in one pane synchronizes the text query and matches-only mode to
+the others. DynaR uses the same filter synchronization implementation as tailg.
+The picker F action always opens a single recording session rather than
+launching split panes, preserving the live-only recording cutoff.

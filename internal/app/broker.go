@@ -171,15 +171,14 @@ func(b *Broker) LoadHistory(ctx context.Context)([]logs.Event,error){
 func (b *Broker) Search(ctx context.Context,term string,selected map[string]bool)([]logui.Event,error){
  records,err:=b.LoadHistory(ctx)
  if err!=nil{return nil,err}
- term=strings.ToLower(strings.TrimSpace(term))
- var out []logui.Event
+ var candidates []logui.Event
  for _,e:=range records{
   if len(selected)>0&&!selected[e.Service]{continue}
-  if term==""||strings.Contains(strings.ToLower(strings.Join([]string{
-   e.Message,e.Service,e.Pod,e.Container,e.TraceID,e.RequestID,e.Level,
-  }," ")),term){out=append(out,asLogUI(e))}
+  candidates=append(candidates,asLogUI(e))
  }
- return out,nil
+ // Full-history search and live filtering share tailg's parser and field
+ // semantics (level:, service:, pod:, trace:, status:, duration:, etc.).
+ return logui.MatchEvents(term,candidates)
 }
 func (b *Broker) Trace(ctx context.Context,id string,selected map[string]bool)([]logui.Event,error){
  records,err:=b.LoadHistory(ctx)
@@ -194,13 +193,37 @@ func (b *Broker) Trace(ctx context.Context,id string,selected map[string]bool)([
 func (b *Broker) ErrorLogs(ctx context.Context,pod string)([][]logui.Event,error){
  records,err:=b.LoadHistory(ctx)
  if err!=nil{return nil,err}
- var out [][]logui.Event
+ var candidates []logui.Event
  for _,e:=range records{
-  if recordSource(e).Pod!=pod{continue}
-  if !logs.IsError(e.Level){continue}
-  out=append(out,[]logui.Event{asLogUI(e)})
+  if recordSource(e).Pod==pod{candidates=append(candidates,asLogUI(e))}
  }
- return out,nil
+ return logui.ErrorBlocks(candidates),nil
+}
+// LogDetails retrieves the source's complete retained exception block,
+// including separate Grail records for .NET stack frames. Never replace the
+// tailg UI's full buffered detail with a truncated single-line response.
+func(b *Broker)LogDetails(ctx context.Context,selected logui.Event)([]logui.Event,error){
+ records,err:=b.LoadHistory(ctx)
+ if err!=nil{return nil,err}
+ sameSource:=make([]logui.Event,0,64)
+ for _,raw:=range records{
+  event:=asLogUI(raw)
+  if event.Pod==selected.Pod && event.Container==selected.Container{
+   sameSource=append(sameSource,event)
+  }
+ }
+ isSelected:=func(e logui.Event)bool{
+  return e.Timestamp.Equal(selected.Timestamp)&&e.Message==selected.Message
+ }
+ for _,block:=range logui.ErrorBlocks(sameSource){
+  for _,e:=range block{
+   if isSelected(e){return block,nil}
+  }
+ }
+ for _,e:=range sameSource{
+  if isSelected(e){return []logui.Event{e},nil}
+ }
+ return nil,nil
 }
 func (b *Broker) Status()error{
  b.mu.RLock();defer b.mu.RUnlock()
