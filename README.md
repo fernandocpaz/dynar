@@ -15,6 +15,18 @@ dynar -n apollo
 
 On PowerShell, use `$env:DYNAR_PROD_TOKEN = 'YOUR_DYNATRACE_PLATFORM_TOKEN'` instead of `export`.
 
+## Updates (same workflow as tailg)
+
+DynaR checks GitHub's latest stable release once at interactive startup, without delaying namespace log collection. When a newer stable version is published, an in-terminal prompt offers **Later** (the default) or **Update & restart**. Press `U` to install immediately, `Tab` to change the focused action, `Enter` to select, or `Esc` to continue. DynaR will verify the downloaded executable's SHA-256 digest, check the version it reports, safely replace the installed binary, and restart with the same arguments. A failed update preserves the existing executable.
+
+```bash
+dynar update --check     # compare installed vs latest stable release
+dynar update             # install verified release and exit
+dynar -n apollo --no-update-check   # disable automatic startup check
+```
+
+Set `DYNAR_NO_UPDATE_CHECK=1` to disable checks by default. Updates require a writable install directory. Standalone snapshots and redirected output never prompt. Development builds do not offer automatic updates. Published releases include binaries for Linux, Windows, and macOS where supported; existing source credentials/configuration are not modified.
+
 ## Terminal UI: one panel per service
 
 In an interactive terminal, `dynar -n apollo` opens a full-screen service grid. It loads all logs using one namespace-wide Grail query, then automatically groups by `k8s.workload.name`, deployment, StatefulSet/DaemonSet/Job, container, or inferred pod workload. The service panels show formatted Serilog/JSON messages, colored ERR/WRN/INF severity, timestamp, and complete multiline exceptions. Terminal widths determine whether panels appear in one, two or three columns. Tab selects a workload; Enter maximizes it for scrolling.

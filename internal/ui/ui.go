@@ -13,6 +13,7 @@ import (
     tea "github.com/charmbracelet/bubbletea"
     "github.com/charmbracelet/lipgloss"
     "github.com/fernandocpaz/dynar/internal/logs"
+    "github.com/fernandocpaz/dynar/internal/update"
 )
 
 // LoadFunc is the namespace-wide collection function. Filtering by service is
@@ -31,6 +32,7 @@ type Config struct {
     Level string
     Service string
     Load LoadFunc
+    Updates *update.Client
 }
 
 type loadMsg struct {
@@ -41,6 +43,8 @@ type loadMsg struct {
     to time.Time
 }
 type refreshMsg struct{}
+type updateOfferMsg struct{ release update.Release; available bool }
+type updateInstalledMsg struct{ err error }
 type model struct {
     ctx context.Context
     config Config
@@ -61,6 +65,9 @@ type model struct {
     warnings []string
     lastLoaded time.Time
     nextFrom, nextTo time.Time
+    updateOffer update.Release
+    updatePending, updateBusy, updateFocus, restart bool
+    updateError string
 }
 var (
     headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light:"#176B3A",Dark:"#7EE787"})
@@ -83,11 +90,33 @@ func newModel(ctx context.Context,c Config) model {
     m.setPattern(c.InitialSearch)
     return m
 }
-func Run(ctx context.Context,c Config,out io.Writer)error {
-    _,err:=tea.NewProgram(newModel(ctx,c),tea.WithAltScreen(),tea.WithContext(ctx),tea.WithOutput(out)).Run()
-    return err
+func Run(ctx context.Context,c Config,out io.Writer)(bool,error) {
+    final,err:=tea.NewProgram(newModel(ctx,c),tea.WithAltScreen(),tea.WithContext(ctx),tea.WithOutput(out)).Run()
+    if err!=nil{return false,err}
+    if m,ok:=final.(model);ok{return m.restart,nil}
+    return false,nil
 }
-func(m model) Init()tea.Cmd{return m.loadCmd()}
+func(m model) Init()tea.Cmd{
+    if m.config.Updates==nil{return m.loadCmd()}
+    return tea.Batch(m.loadCmd(),m.updateCheckCmd())
+}
+func(m model) updateCheckCmd()tea.Cmd{
+    client:=m.config.Updates
+    ctx:=m.ctx
+    if client==nil{return nil}
+    return func()tea.Msg{
+        client.Cleanup()
+        release,available:=client.Offer(ctx)
+        return updateOfferMsg{release:release,available:available}
+    }
+}
+func(m model) updateInstallCmd()tea.Cmd{
+    client:=m.config.Updates
+    release:=m.updateOffer
+    return func()tea.Msg{
+        return updateInstalledMsg{err:client.Install(m.ctx,release)}
+    }
+}
 func(m model) loadCmd()tea.Cmd{
     from,to:=m.nextFrom,m.nextTo
     fn:=m.config.Load
@@ -103,6 +132,15 @@ func(m model) refreshCmd()tea.Cmd{
 }
 func(m model) Update(msg tea.Msg)(tea.Model,tea.Cmd){
     switch v:=msg.(type){
+    case updateOfferMsg:
+        m.updatePending=v.available
+        m.updateOffer=v.release
+        return m,nil
+    case updateInstalledMsg:
+        m.updateBusy=false
+        if v.err!=nil{m.updateError=v.err.Error();return m,nil}
+        m.restart=true
+        return m,tea.Quit
     case tea.WindowSizeMsg:
         m.width,m.height=v.Width,v.Height
         return m,nil
@@ -132,6 +170,28 @@ func(m model) Update(msg tea.Msg)(tea.Model,tea.Cmd){
     case tea.KeyMsg:
         key:=v.String()
         if key=="ctrl+c"{return m,tea.Quit}
+        if m.updatePending{
+            if m.updateBusy{return m,nil}
+            switch key {
+            case "esc","q","l","n":
+                m.updatePending=false
+                if m.config.Updates!=nil{m.config.Updates.Dismiss()}
+            case "tab","shift+tab","left","right":
+                m.updateFocus=!m.updateFocus
+            case "u":
+                m.updateBusy=true;m.updateError=""
+                return m,m.updateInstallCmd()
+            case "enter":
+                if !m.updateFocus {
+                    m.updatePending=false
+                    if m.config.Updates!=nil{m.config.Updates.Dismiss()}
+                }else {
+                    m.updateBusy=true;m.updateError=""
+                    return m,m.updateInstallCmd()
+                }
+            }
+            return m,nil
+        }
         if m.searching{
             switch key{
             case "esc":m.searching=false;m.draft=m.search;m.searchError=""
@@ -269,6 +329,7 @@ func(m model) gridDimensions()(columns,rows,panelHeight,perPage int){
     return
 }
 func(m model) View()string{
+    if m.updatePending {return m.updateView()}
     if m.width<34 || m.height<12{return "DynaR: enlarge terminal (minimum 34x12). Press q to quit."}
     activity:="LIVE"
     if !m.following{activity="PAUSED"}
@@ -456,4 +517,31 @@ func shorten(s string,width int)string{
     if len(chars)<=width{return s}
     if width==1{return "…"}
     return string(chars[:width-1])+"…"
+}
+
+func(m model) updateView()string {
+    if m.width<40 || m.height<12{
+        return "DynaR update available. Enlarge terminal (40x12). Esc: Later."
+    }
+    inner:=min(76,m.width-6)
+    title:="DynaR update available"
+    version:="Installed: "+m.config.Updates.Version+"     Latest: "+m.updateOffer.Version
+    controls:="> [ Later ]    [ Update & restart ]"
+    if m.updateFocus{controls="  [ Later ]  > [ Update & restart ]"}
+    body:=[]string{headerStyle.Render(title),version,""}
+    if m.updateBusy{
+        body=append(body,"Downloading and verifying SHA-256 binary digest…")
+    }else{
+        if m.updateError!=""{
+            body=append(body,errorStyle.Render("Update failed: "+shorten(m.updateError,inner)))
+        }
+        body=append(body,controls,"U Update    Enter Select    Esc Later")
+    }
+    content:=strings.Join(body,"\n")
+    modal:=lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0,1).
+        BorderForeground(lipgloss.AdaptiveColor{Light:"#7A4E00",Dark:"#FFD166"}).
+        Width(inner).Render(content)
+    left:=max(0,(m.width-lipgloss.Width(modal))/2)
+    top:=max(0,(m.height-lipgloss.Height(modal))/2)
+    return strings.Repeat("\n",top)+lipgloss.NewStyle().MarginLeft(left).Render(modal)
 }

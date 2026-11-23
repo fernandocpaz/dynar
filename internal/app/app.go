@@ -14,16 +14,17 @@ import (
  "github.com/fernandocpaz/dynar/internal/config"
  "github.com/fernandocpaz/dynar/internal/dynatrace"
  "github.com/fernandocpaz/dynar/internal/logs"
+ "github.com/fernandocpaz/dynar/internal/update"
  "github.com/fernandocpaz/dynar/internal/ui"
 )
 
-const Version="0.2.0-dev"
 
 func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  if len(args)>0{
   switch args[0]{
    case "help","--help","-h":usage(stdout);return 0
-   case "version","--version":fmt.Fprintln(stdout,"DynaR",Version);return 0
+   case "version","--version":fmt.Fprintln(stdout,BuildDescription());return 0
+   case "update":return updateCommand(ctx,args[1:],stdout,stderr)
    case "source":return sources(args[1:],stdout,stderr)
   }
  }
@@ -47,6 +48,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  output:=fs.String("output","text","text or ndjson")
  noUI:=fs.Bool("no-ui",false,"Disable full-screen interactive mode")
  group:=fs.Bool("group",false,"Group snapshot text output by service (with --once)")
+ noUpdateCheck:=fs.Bool("no-update-check",false,"Skip startup release check")
  if err:=fs.Parse(args);err!=nil{return 2}
  if fs.NArg()!=0{fmt.Fprintln(stderr,"unexpected positional arguments:",strings.Join(fs.Args()," "));return 2}
  ns:=*namespace
@@ -82,15 +84,20 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  collector:=Collector{Query:client.Query,Limit:*limit,MaxQueries:*maxQueries}
  follow:=!*once&&!*noFollow
  if follow && !*noUI && *output=="text" && interactiveTerminal(stdout) {
-  err:=ui.Run(ctx,ui.Config{
+  var updater *update.Client
+  if !*noUpdateCheck && !isUpdateCheckDisabled() && StableBuild() {
+   updater=update.NewSession(ctx,InstalledVersion())
+  }
+  restart,err:=ui.Run(ctx,ui.Config{
    Source:name,Namespace:ns,Cluster:*cluster,Since:*since,Refresh:*refresh,
    BufferLines:*bufferLines,InitialSearch:*search,Regex:*regex,
-   Level:*level,Service:*service,
+   Level:*level,Service:*service,Updates:updater,
    Load:func(ctx context.Context,from,to time.Time)([]logs.Event,[]string,error){
     return collector.Load(ctx,name,ns,*cluster,from,to)
    },
   },stdout)
   if err!=nil{fmt.Fprintln(stderr,"DynaR UI:",err);return 1}
+  if restart{return RestartExitCode}
   return 0
  }
  store:=logs.NewStore(*bufferLines)
@@ -209,6 +216,8 @@ func usage(w io.Writer){
   dynar -n apollo --source prod --search timeout --level ERROR
   dynar -n apollo --source qa --cluster tkgs-qa --output ndjson
   dynar -n apollo --once --group
+  dynar update --check
+  dynar update
 
 Credentials: DYNAR_TOKEN, or DYNAR_<SOURCE>_TOKEN (e.g. DYNAR_PROD_TOKEN).
 OAuth client credentials: DYNAR_CLIENT_ID and DYNAR_CLIENT_SECRET (or source-prefixed).
@@ -216,7 +225,7 @@ Tokens are read from environment variables, never saved in source configuration.
 
 Options: -n, --namespace, --source, --cluster, --since, --refresh,
          --once, --no-follow, --search, --regex, --level, --service,
-         --output text|ndjson, --no-ui, --group (snapshots),
+         --output text|ndjson, --no-ui, --group (snapshots), --no-update-check,
          --limit, --max-queries, --buffer-lines.
 `)
 }
