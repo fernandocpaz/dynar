@@ -138,3 +138,13 @@ AI analysis is opt-in per selected log and uses the same provider configuration
 and source-repository mapping already configured for tailg
 (`TAILG_AI_*` and tailg's owner-restricted saved settings). No Dynatrace logs
 are sent to an AI provider unless the operator explicitly invokes an AI action.
+
+## F-key live log recording
+
+In the actual tailg workload picker, highlight a service or select multiple with
+Space, then press **F**. DynaR creates a timestamp-suffixed `dynar_*.ndjson`
+file in the working directory and opens the shared tailg log viewer. The file
+records only events timestamped **at or after the F keypress**; the initial
+historical buffer is not written. Captures contain original raw messages,
+workload, pod, container, timestamp, level, trace ID, and request ID, intended
+for downstream AI investigation. Tailg's in-view recording path can be copied.

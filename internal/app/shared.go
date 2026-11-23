@@ -1,11 +1,11 @@
 package app
 
 import (
- "bufio"
  "context"
+ "bufio"
+ "os"
  "fmt"
  "io"
- "os"
  "sort"
  "strings"
  "time"
@@ -40,6 +40,8 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    return false,fmt.Errorf("no accessible logs in namespace %q during %s; check ingestion, scope, and --since",opts.Namespace,opts.Since)
   }
   var selected map[string]bool
+  var record bool
+  var recordFrom time.Time
   switch {
   case opts.All:selected=map[string]bool{}
   case opts.Service!="":
@@ -55,6 +57,8 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    if err!=nil{return false,err}
    if choice.Quit{return false,nil}
    if len(choice.Workloads)==0{continue}
+   record=choice.Record
+   recordFrom=choice.RecordFrom
    selected=make(map[string]bool,len(choice.Workloads))
    for _,app:=range choice.Workloads{selected[app]=true}
   }
@@ -67,7 +71,19 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    sort.Strings(names)
    target=strings.Join(names,",")
   }
+  var recorder *Recorder
+  if record {
+   if recordFrom.IsZero(){recordFrom=time.Now()}
+   var err error
+   recorder,err=NewRecorder(".",opts.Namespace,opts.Source,target,recordFrom)
+   if err!=nil{return false,fmt.Errorf("start live recording: %w",err)}
+   fmt.Fprintln(stderr,"Recording live logs to",recorder.Path)
+  }
+  recordingPath:=""
+  var capture func([]logui.Event)error
+  if recorder!=nil{recordingPath=recorder.Path;capture=recorder.Write}
   err:=logui.Run(ctx,logui.Config{
+   RecordingPath:recordingPath,Capture:capture,
    Title:"DynaR | "+opts.Source+" | "+opts.Namespace,
    Namespace:opts.Namespace,Provider:opts.Source,Target:target,
    Sources:list,RefreshInterval:opts.Refresh,BufferLines:opts.BufferLines,
@@ -90,6 +106,11 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
     return []logui.Event{e},nil
    },
   })
+  if recorder!=nil{
+   closeErr:=recorder.Close()
+   fmt.Fprintf(stderr,"DynaR recording saved: %s (%d events)\n",recorder.Path,recorder.Count)
+   if err==nil{err=closeErr}
+  }
   if err!=nil{return false,err}
   if ctx.Err()!=nil || opts.All || opts.Service!=""{return false,nil}
  }
