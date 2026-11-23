@@ -51,6 +51,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - run: go mod tidy
       - name: Linux race tests
         if: runner.os == 'Linux'
         run: go test -race ./...
@@ -77,6 +78,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - run: go mod tidy
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}

@@ -1,6 +1,6 @@
 # DynaR
 
-**DynaR** is a standalone, read-only Go CLI for browsing all Dynatrace Grail logs in a Kubernetes namespace. It is separate from [tailg](https://github.com/fernandocpaz/tailg): it does **not** require `kubectl` or a Kubernetes connection.
+**DynaR** is a standalone, read-only Go CLI for browsing all Dynatrace Grail logs in a Kubernetes namespace. **Its interactive picker and log viewer now use tailg's actual shared engine**, not a parallel imitation. The DynaR binary and releases remain independent. It is separate from [tailg](https://github.com/fernandocpaz/tailg): it does **not** require `kubectl` or a Kubernetes connection.
 
 ## Quick start
 
@@ -29,7 +29,7 @@ Set `DYNAR_NO_UPDATE_CHECK=1` to disable checks by default. Updates require a wr
 
 ## Terminal UI: one panel per service
 
-In an interactive terminal, `dynar -n apollo` opens a full-screen service grid. It loads all logs using one namespace-wide Grail query, then automatically groups by `k8s.workload.name`, deployment, StatefulSet/DaemonSet/Job, container, or inferred pod workload. The service panels show formatted Serilog/JSON messages, colored ERR/WRN/INF severity, timestamp, and complete multiline exceptions. Terminal widths determine whether panels appear in one, two or three columns. Tab selects a workload; Enter maximizes it for scrolling.
+In an interactive terminal, `dynar -n apollo` opens tailg's workload picker, then tailg's real full-screen log viewer for the selected workload(s). Select several with Space; use Enter to open.  It loads all logs using one namespace-wide Grail query, then automatically groups by `k8s.workload.name`, deployment, StatefulSet/DaemonSet/Job, container, or inferred pod workload. The shared log viewer formats Serilog/JSON, colored ERR/WRN/INF severity, timestamps, and multiline exceptions using tailg's production renderer. Terminal widths determine whether panels appear in one, two or three columns. Tab selects a workload; Enter maximizes it for scrolling.
 
 | Key | Behavior |
 | --- | --- |
@@ -53,7 +53,7 @@ The token must have permission to query Grail logs, including `storage:logs:read
 ## Primary commands
 
 ```bash
-dynar -n apollo                             # full-screen per-service panels, auto-refresh
+dynar -n apollo                             # tailg workload picker → tailg live log viewer
 dynar -n apollo --source qa --cluster tkgs-qa
 dynar -n apollo --since 24h --once          # historical logs once
 dynar -n apollo --search 'timeout'          # text search across all services
@@ -62,6 +62,7 @@ dynar -n apollo --search 'timeout|failed' --regex
 dynar -n apollo --once --output ndjson > logs.ndjson
 dynar -n apollo --once --group                # snapshot grouped by service
 dynar -n apollo --no-ui                       # legacy plain streaming mode
+dynar -n apollo --all                         # open all services in a shared timeline
 
 dynar source list
 dynar source use qa
@@ -97,3 +98,11 @@ go build -o dynar ./cmd/dynar
 DynaR is an independent repository; tailg is unchanged.
 
 References: [Dynatrace platform tokens](https://docs.dynatrace.com/docs/manage/identity-access-management/access-tokens-and-oauth-clients/platform-tokens) and [Grail Query API](https://developer.dynatrace.com/develop/platform-services/services/grail-service/).
+
+## Shared UI and provider-only functionality
+
+Interactive mode uses `github.com/fernandocpaz/tailg/pkg/logui`. DynaR queries Grail **once per namespace polling interval**, then supplies the results to tailg's UI via an in-memory multiplexer. Source and authentication remain Dynatrace; tailg remains fully usable with Kubernetes unchanged.
+
+The exact tailg log-viewer shortcuts replace DynaR's former prototype grid shortcuts. In particular, F1 filters matches, F3 opens retained error logs, F5 shows heartbeat analysis, F8 issues, F9 analytics/charts, F10 security, and F6 traces. The workload picker uses Space multi-select and Enter open. `--all` skips the picker. Full-history searches use the selected `--since` window and fail visibly if query completeness cannot be confirmed.
+
+Kubernetes-only picker actions (pod commands, CronJob execution, node diagnostics, ConfigMaps/Secrets, pod metrics, network inspection) are disabled in the Dynatrace provider. No `kubectl` is required. The original separate prototype UI remains in the codebase only for reference and is not invoked by default.
