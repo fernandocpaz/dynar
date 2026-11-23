@@ -16,7 +16,7 @@ func Restart(path string, args []string) error {
 	// child would return a shell prompt that competes with dynar for input.
 	if err := command.Run(); err != nil {
 		if status, ok := err.(*exec.ExitError); ok {
-			return exitError(status.ExitCode())
+			return fmt.Errorf("restarted DynaR exited with status %d: %w", status.ExitCode(), err)
 		}
 		return err
 	}
