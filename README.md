@@ -120,7 +120,7 @@ Interactive mode uses `github.com/fernandocpaz/tailg/pkg/logui`. DynaR queries G
 
 The exact tailg log-viewer shortcuts replace DynaR's former prototype grid shortcuts. In particular, F1 filters matches, F3 opens retained error logs, F5 shows heartbeat analysis, F8 issues, F9 analytics/charts, F10 security, and F6 traces. The workload picker uses Space multi-select and Enter open. `--all` skips the picker. Full-history searches use the selected `--since` window and fail visibly if query completeness cannot be confirmed.
 
-Kubernetes-only picker actions (pod commands, CronJob execution, node diagnostics, ConfigMaps/Secrets, pod metrics, network inspection) are disabled in the Dynatrace provider. No `kubectl` is required. The original separate prototype UI remains in the codebase only for reference and is not invoked by default.
+Kubernetes-only picker actions (pod commands, CronJob execution, node diagnostics, ConfigMaps/Secrets, pod metrics, network inspection) are disabled in the Dynatrace provider. No `kubectl` is required. The original standalone prototype UI has been retired; tailg's shared viewer is the only interactive log implementation.
 
 ## Search and analysis parity
 
