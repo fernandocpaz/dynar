@@ -171,15 +171,14 @@ func(b *Broker) LoadHistory(ctx context.Context)([]logs.Event,error){
 func (b *Broker) Search(ctx context.Context,term string,selected map[string]bool)([]logui.Event,error){
  records,err:=b.LoadHistory(ctx)
  if err!=nil{return nil,err}
- term=strings.ToLower(strings.TrimSpace(term))
- var out []logui.Event
+ var candidates []logui.Event
  for _,e:=range records{
   if len(selected)>0&&!selected[e.Service]{continue}
-  if term==""||strings.Contains(strings.ToLower(strings.Join([]string{
-   e.Message,e.Service,e.Pod,e.Container,e.TraceID,e.RequestID,e.Level,
-  }," ")),term){out=append(out,asLogUI(e))}
+  candidates=append(candidates,asLogUI(e))
  }
- return out,nil
+ // Full-history search and live filtering share tailg's parser and field
+ // semantics (level:, service:, pod:, trace:, status:, duration:, etc.).
+ return logui.MatchEvents(term,candidates)
 }
 func (b *Broker) Trace(ctx context.Context,id string,selected map[string]bool)([]logui.Event,error){
  records,err:=b.LoadHistory(ctx)
@@ -194,13 +193,11 @@ func (b *Broker) Trace(ctx context.Context,id string,selected map[string]bool)([
 func (b *Broker) ErrorLogs(ctx context.Context,pod string)([][]logui.Event,error){
  records,err:=b.LoadHistory(ctx)
  if err!=nil{return nil,err}
- var out [][]logui.Event
+ var candidates []logui.Event
  for _,e:=range records{
-  if recordSource(e).Pod!=pod{continue}
-  if !logs.IsError(e.Level){continue}
-  out=append(out,[]logui.Event{asLogUI(e)})
+  if recordSource(e).Pod==pod{candidates=append(candidates,asLogUI(e))}
  }
- return out,nil
+ return logui.ErrorBlocks(candidates),nil
 }
 func (b *Broker) Status()error{
  b.mu.RLock();defer b.mu.RUnlock()

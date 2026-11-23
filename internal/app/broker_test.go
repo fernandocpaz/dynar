@@ -39,3 +39,23 @@ func TestSourceFallback(t *testing.T){
  s:=recordSource(e)
  if s.Pod!="worker-unknown"||s.Container!="worker"{t.Fatal(fmt.Sprint(s))}
 }
+
+func TestHistoryQueriesUseTailgFieldFiltersAndErrorBlocks(t *testing.T){
+    now:=time.Now().UTC().Truncate(time.Second)
+    stamps:=func(n int)string{return now.Add(-time.Duration(4-n)*time.Second).Format(time.RFC3339Nano)}
+    records:=[]map[string]any{
+        {"timestamp":stamps(0),"k8s.deployment.name":"encounter","k8s.pod.name":"encounter-abcd","k8s.container.name":"app","content":"SQL failed","loglevel":"ERROR"},
+        {"timestamp":stamps(1),"k8s.deployment.name":"encounter","k8s.pod.name":"encounter-abcd","k8s.container.name":"app","content":"   at Handler.Save()","loglevel":"INFO"},
+        {"timestamp":stamps(2),"k8s.deployment.name":"patient","k8s.pod.name":"patient-efgh","k8s.container.name":"app","content":"Patient loaded","loglevel":"INFO"},
+    }
+    c:=Collector{Limit:50,MaxQueries:2,Query:func(_ context.Context,_,_ string,_,_ time.Time,_ int)(dynatrace.Result,error){
+        return dynatrace.Result{Records:records},nil
+    }}
+    b:=NewBroker(c,"prod","apollo","",time.Minute,time.Second,100)
+    found,err:=b.Search(context.Background(),"level:ERR service:encounter",nil)
+    if err!=nil||len(found)!=1{t.Fatalf("structured search mismatch: %d: %v",len(found),err)}
+    blocks,err:=b.ErrorLogs(context.Background(),"encounter-abcd")
+    if err!=nil||len(blocks)!=1||len(blocks[0])!=2{
+        t.Fatalf("lost split exception frames: %#v, %v",blocks,err)
+    }
+}

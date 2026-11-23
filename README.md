@@ -106,3 +106,20 @@ Interactive mode uses `github.com/fernandocpaz/tailg/pkg/logui`. DynaR queries G
 The exact tailg log-viewer shortcuts replace DynaR's former prototype grid shortcuts. In particular, F1 filters matches, F3 opens retained error logs, F5 shows heartbeat analysis, F8 issues, F9 analytics/charts, F10 security, and F6 traces. The workload picker uses Space multi-select and Enter open. `--all` skips the picker. Full-history searches use the selected `--since` window and fail visibly if query completeness cannot be confirmed.
 
 Kubernetes-only picker actions (pod commands, CronJob execution, node diagnostics, ConfigMaps/Secrets, pod metrics, network inspection) are disabled in the Dynatrace provider. No `kubectl` is required. The original separate prototype UI remains in the codebase only for reference and is not invoked by default.
+
+## Search and analysis parity
+
+DynaR uses tailg's native filter/query parser for both live logs and historical
+results. Type in the search bar to use expressions such as
+`level:ERR service:encounter`, `trace:<32-char-id>` or `status:>=500`.
+`dynar -n apollo --search "timeout"` initializes that filter. With
+`--regex --search "timeout|failed"`, DynaR uses tailg's include-regex
+formatter instead. `--since` controls the bounded historical lookup.
+
+The F3 error inspector now retains stack frames split into multiple Grail
+records using tailg's original exception continuation rules.
+
+AI analysis is opt-in per selected log and uses the same provider configuration
+and source-repository mapping already configured for tailg
+(`TAILG_AI_*` and tailg's owner-restricted saved settings). No Dynatrace logs
+are sent to an AI provider unless the operator explicitly invokes an AI action.

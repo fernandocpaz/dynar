@@ -15,7 +15,8 @@ import (
 )
 
 type SharedOptions struct {
- Source, Namespace, Cluster, Service string
+ Source, Namespace, Cluster, Service, Search string
+ Regex bool
  Since, Refresh time.Duration
  BufferLines int
  NoUpdateCheck bool
@@ -70,7 +71,9 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    Title:"DynaR | "+opts.Source+" | "+opts.Namespace,
    Namespace:opts.Namespace,Provider:opts.Source,Target:target,
    Sources:list,RefreshInterval:opts.Refresh,BufferLines:opts.BufferLines,
-   Color:true,ShowPod:true,
+   Color:true,ShowPod:true,UseConfiguredAI:true,
+   InitialFilter:func()string{if opts.Regex{return ""};return opts.Search}(),
+   RegexFilter:func()string{if opts.Regex{return opts.Search};return ""}(),
    Stream:broker.Subscribe,
    Inventory:func(ctx context.Context)([]logui.Source,error){
     if err:=broker.Status();err!=nil{return nil,err}

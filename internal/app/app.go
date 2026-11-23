@@ -86,7 +86,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
   restart,err:=sharedViewer(ctx,collector,SharedOptions{
    Source:name,Namespace:ns,Cluster:*cluster,Service:*service,
    Since:*since,Refresh:*refresh,BufferLines:*bufferLines,
-   NoUpdateCheck:*noUpdateCheck,All:*all,
+   NoUpdateCheck:*noUpdateCheck,All:*all,Search:*search,Regex:*regex,
   },stdout,stderr)
   if err!=nil{fmt.Fprintln(stderr,"DynaR:",err);return 1}
   if restart{return RestartExitCode}

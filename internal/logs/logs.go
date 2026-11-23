@@ -62,26 +62,42 @@ func FromRecord(rec map[string]any, source string)(Event,error){
 }
 type Store struct {
  Max int
+ SeenMax int // bounded replay identity budget, independent from the visible ring
  Items []Event
  seen map[string]struct{}
+ seenOrder []string
+ seenHead int
 }
 func NewStore(max int)*Store{
  if max<1{max=10000}
- return &Store{Max:max,seen:map[string]struct{}{}}
+ seenMax:=max*8
+ if seenMax<20000{seenMax=20000}
+ if seenMax>1000000{seenMax=1000000}
+ return &Store{Max:max,SeenMax:seenMax,seen:map[string]struct{}{}}
 }
 func(s *Store)Add(items []Event)[]Event{
  fresh:=make([]Event,0,len(items))
  for _,e:=range items{
   if _,exists:=s.seen[e.Identity];exists{continue}
   s.seen[e.Identity]=struct{}{}
+  s.seenOrder=append(s.seenOrder,e.Identity)
   fresh=append(fresh,e)
   s.Items=append(s.Items,e)
  }
  sort.SliceStable(s.Items,func(i,j int)bool{return s.Items[i].Timestamp.Before(s.Items[j].Timestamp)})
  if len(s.Items)>s.Max{
   discard:=len(s.Items)-s.Max
-  for _,e:=range s.Items[:discard]{delete(s.seen,e.Identity)}
+  // Deliberately retain identities past visible-line eviction, because the
+  // Dynatrace polling overlap will encounter old events again.
   s.Items=append([]Event(nil),s.Items[discard:]...)
+ }
+ for len(s.seenOrder)-s.seenHead>s.SeenMax{
+  delete(s.seen,s.seenOrder[s.seenHead])
+  s.seenHead++
+ }
+ if s.seenHead>10000 && s.seenHead*2>=len(s.seenOrder){
+  s.seenOrder=append([]string(nil),s.seenOrder[s.seenHead:]...)
+  s.seenHead=0
  }
  sort.SliceStable(fresh,func(i,j int)bool{return fresh[i].Timestamp.Before(fresh[j].Timestamp)})
  return fresh
