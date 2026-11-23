@@ -15,8 +15,7 @@ import (
  "github.com/fernandocpaz/dynar/internal/dynatrace"
  "github.com/fernandocpaz/dynar/internal/logs"
  "github.com/fernandocpaz/dynar/internal/update"
- "github.com/fernandocpaz/dynar/internal/ui"
-)
+ )
 
 
 func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
@@ -48,6 +47,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  output:=fs.String("output","text","text or ndjson")
  noUI:=fs.Bool("no-ui",false,"Disable full-screen interactive mode")
  group:=fs.Bool("group",false,"Group snapshot text output by service (with --once)")
+ all:=fs.Bool("all",false,"Open all services together without the workload picker")
  noUpdateCheck:=fs.Bool("no-update-check",false,"Skip startup release check")
  if err:=fs.Parse(args);err!=nil{return 2}
  if fs.NArg()!=0{fmt.Fprintln(stderr,"unexpected positional arguments:",strings.Join(fs.Args()," "));return 2}
@@ -84,19 +84,12 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  collector:=Collector{Query:client.Query,Limit:*limit,MaxQueries:*maxQueries}
  follow:=!*once&&!*noFollow
  if follow && !*noUI && *output=="text" && interactiveTerminal(stdout) {
-  var updater *update.Client
-  if !*noUpdateCheck && !isUpdateCheckDisabled() && StableBuild() {
-   updater=update.NewSession(ctx,InstalledVersion())
-  }
-  restart,err:=ui.Run(ctx,ui.Config{
-   Source:name,Namespace:ns,Cluster:*cluster,Since:*since,Refresh:*refresh,
-   BufferLines:*bufferLines,InitialSearch:*search,Regex:*regex,
-   Level:*level,Service:*service,Updates:updater,
-   Load:func(ctx context.Context,from,to time.Time)([]logs.Event,[]string,error){
-    return collector.Load(ctx,name,ns,*cluster,from,to)
-   },
-  },stdout)
-  if err!=nil{fmt.Fprintln(stderr,"DynaR UI:",err);return 1}
+  restart,err:=sharedViewer(ctx,collector,SharedOptions{
+   Source:name,Namespace:ns,Cluster:*cluster,Service:*service,
+   Since:*since,Refresh:*refresh,BufferLines:*bufferLines,
+   NoUpdateCheck:*noUpdateCheck,All:*all,
+  },stdout,stderr)
+  if err!=nil{fmt.Fprintln(stderr,"DynaR:",err);return 1}
   if restart{return RestartExitCode}
   return 0
  }
@@ -216,6 +209,7 @@ func usage(w io.Writer){
   dynar -n apollo --source prod --search timeout --level ERROR
   dynar -n apollo --source qa --cluster tkgs-qa --output ndjson
   dynar -n apollo --once --group
+  dynar -n apollo --all
   dynar update --check
   dynar update
 
@@ -225,7 +219,7 @@ Tokens are read from environment variables, never saved in source configuration.
 
 Options: -n, --namespace, --source, --cluster, --since, --refresh,
          --once, --no-follow, --search, --regex, --level, --service,
-         --output text|ndjson, --no-ui, --group (snapshots), --no-update-check,
+         --output text|ndjson, --no-ui, --group (snapshots), --all, --no-update-check,
          --limit, --max-queries, --buffer-lines.
 `)
 }
