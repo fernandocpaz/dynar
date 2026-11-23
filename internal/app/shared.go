@@ -118,7 +118,9 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
     return broker.Search(ctx,text,selected)
    },
    Trace:func(ctx context.Context,id string)([]logui.Event,error){
-    return broker.Trace(ctx,id,selected)
+    // Distributed traces can cross workloads even when the picker currently
+    // displays only one service. F6 investigates the complete namespace.
+    return broker.Trace(ctx,id,nil)
    },
    ErrorLogs:broker.ErrorLogs,
    LogDetails:func(ctx context.Context,e logui.Event)([]logui.Event,error){
