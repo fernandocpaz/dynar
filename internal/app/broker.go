@@ -199,6 +199,32 @@ func (b *Broker) ErrorLogs(ctx context.Context,pod string)([][]logui.Event,error
  }
  return logui.ErrorBlocks(candidates),nil
 }
+// LogDetails retrieves the source's complete retained exception block,
+// including separate Grail records for .NET stack frames. Never replace the
+// tailg UI's full buffered detail with a truncated single-line response.
+func(b *Broker)LogDetails(ctx context.Context,selected logui.Event)([]logui.Event,error){
+ records,err:=b.LoadHistory(ctx)
+ if err!=nil{return nil,err}
+ sameSource:=make([]logui.Event,0,64)
+ for _,raw:=range records{
+  event:=asLogUI(raw)
+  if event.Pod==selected.Pod && event.Container==selected.Container{
+   sameSource=append(sameSource,event)
+  }
+ }
+ isSelected:=func(e logui.Event)bool{
+  return e.Timestamp.Equal(selected.Timestamp)&&e.Message==selected.Message
+ }
+ for _,block:=range logui.ErrorBlocks(sameSource){
+  for _,e:=range block{
+   if isSelected(e){return block,nil}
+  }
+ }
+ for _,e:=range sameSource{
+  if isSelected(e){return []logui.Event{e},nil}
+ }
+ return nil,nil
+}
 func (b *Broker) Status()error{
  b.mu.RLock();defer b.mu.RUnlock()
  if b.lastError!=nil{return b.lastError}

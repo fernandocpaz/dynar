@@ -123,9 +123,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
     return broker.Trace(ctx,id,nil)
    },
    ErrorLogs:broker.ErrorLogs,
-   LogDetails:func(ctx context.Context,e logui.Event)([]logui.Event,error){
-    return []logui.Event{e},nil
-   },
+   LogDetails:broker.LogDetails,
   })
   if recorder!=nil{
    closeErr:=recorder.Close()
