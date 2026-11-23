@@ -6,6 +6,7 @@ import (
  "flag"
  "fmt"
  "io"
+ "os"
  "regexp"
  "sort"
  "strings"
@@ -13,9 +14,10 @@ import (
  "github.com/fernandocpaz/dynar/internal/config"
  "github.com/fernandocpaz/dynar/internal/dynatrace"
  "github.com/fernandocpaz/dynar/internal/logs"
+ "github.com/fernandocpaz/dynar/internal/ui"
 )
 
-const Version="0.1.0-dev"
+const Version="0.2.0-dev"
 
 func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  if len(args)>0{
@@ -43,6 +45,8 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  maxQueries:=fs.Int("max-queries",32,"Maximum API queries per update")
  bufferLines:=fs.Int("buffer-lines",20000,"Records retained for deduplication")
  output:=fs.String("output","text","text or ndjson")
+ noUI:=fs.Bool("no-ui",false,"Disable full-screen interactive mode")
+ group:=fs.Bool("group",false,"Group snapshot text output by service (with --once)")
  if err:=fs.Parse(args);err!=nil{return 2}
  if fs.NArg()!=0{fmt.Fprintln(stderr,"unexpected positional arguments:",strings.Join(fs.Args()," "));return 2}
  ns:=*namespace
@@ -55,6 +59,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  if *refresh<time.Second{fmt.Fprintln(stderr,"--refresh must be at least 1s");return 2}
  if *limit<1||*limit>100000||*maxQueries<1||*maxQueries>256||*bufferLines<1{fmt.Fprintln(stderr,"invalid --limit, --max-queries, or --buffer-lines");return 2}
  if *output!="text"&&*output!="ndjson"{fmt.Fprintln(stderr,"--output must be text or ndjson");return 2}
+ if *group && (!(*once||*noFollow) || *output!="text"){fmt.Fprintln(stderr,"--group requires --once and --output text");return 2}
  if len(ns)>253||strings.ContainsAny(ns,"\r\n\x00"){fmt.Fprintln(stderr,"invalid namespace");return 2}
  matcher,err:=makeMatcher(*search,*regex,*level,*service)
  if err!=nil{fmt.Fprintln(stderr,err);return 2}
@@ -75,17 +80,40 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  client,err:=dynatrace.NewClient(base,dynatrace.Credentials{Token:config.Env(name,"TOKEN"),ClientID:config.Env(name,"CLIENT_ID"),ClientSecret:config.Env(name,"CLIENT_SECRET")})
  if err!=nil{fmt.Fprintln(stderr,err);return 2}
  collector:=Collector{Query:client.Query,Limit:*limit,MaxQueries:*maxQueries}
+ follow:=!*once&&!*noFollow
+ if follow && !*noUI && *output=="text" && interactiveTerminal(stdout) {
+  err:=ui.Run(ctx,ui.Config{
+   Source:name,Namespace:ns,Cluster:*cluster,Since:*since,Refresh:*refresh,
+   BufferLines:*bufferLines,InitialSearch:*search,Regex:*regex,
+   Level:*level,Service:*service,
+   Load:func(ctx context.Context,from,to time.Time)([]logs.Event,[]string,error){
+    return collector.Load(ctx,name,ns,*cluster,from,to)
+   },
+  },stdout)
+  if err!=nil{fmt.Fprintln(stderr,"DynaR UI:",err);return 1}
+  return 0
+ }
  store:=logs.NewStore(*bufferLines)
  lastEnd:=time.Now().UTC()
  windowStart:=lastEnd.Add(-*since)
- follow:=!*once&&!*noFollow
  fmt.Fprintf(stderr,"DynaR | source=%s namespace=%s since=%s follow=%t\n",name,ns,since.String(),follow)
  for{
   events,warnings,err:=collector.Load(ctx,name,ns,*cluster,windowStart,lastEnd)
   if err!=nil{fmt.Fprintln(stderr,"query failed:",err);return 1}
   newEvents:=store.Add(events)
+  if *group{
+   byService:=map[string][]logs.Event{}
+   for _,e:=range newEvents{if matcher(e){byService[e.Service]=append(byService[e.Service],e)}}
+   services:=make([]string,0,len(byService))
+   for service:=range byService{services=append(services,service)}
+   sort.Strings(services)
+   for _,service:=range services{
+    fmt.Fprintf(stdout,"\n=== %s (%d records) ===\n",logs.SafeText(service),len(byService[service]))
+    for _,event:=range byService[service]{fmt.Fprintln(stdout,format(event))}
+   }
+  }
   for _,event:=range newEvents{
-   if !matcher(event){continue}
+   if *group||!matcher(event){continue}
    if *output=="ndjson"{
     raw,err:=json.Marshal(event)
     if err!=nil{fmt.Fprintln(stderr,err);return 1}
@@ -106,14 +134,18 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  }
 }
 func format(e logs.Event)string{
- msg:=strings.NewReplacer("\r","\\r","\n","\\n","\x1b","?").Replace(e.Message)
- return fmt.Sprintf("%s %-24s %-6s %-32s %s",e.Timestamp.Local().Format("2006-01-02 15:04:05.000"),trim(e.Source+"/"+e.Namespace,24),trim(e.Level,6),trim(e.Service,32),msg)
+ header:=fmt.Sprintf("%s [%s] [%s] ",e.Timestamp.Local().Format("2006-01-02 15:04:05.000"),logs.LevelCode(e.Level),logs.SafeText(e.Service))
+ return header+strings.Join(logs.PrettyMessage(e),"\n    ")
 }
-func trim(s string,n int)string{
- r:=[]rune(s)
- if len(r)>n{return string(r[:n-1])+"…"}
- return s
+func interactiveTerminal(w io.Writer)bool{
+ out,ok:=w.(*os.File)
+ if !ok{return false}
+ outInfo,err:=out.Stat()
+ if err!=nil || outInfo.Mode()&os.ModeCharDevice==0{return false}
+ inInfo,err:=os.Stdin.Stat()
+ return err==nil && inInfo.Mode()&os.ModeCharDevice!=0
 }
+
 func makeMatcher(term string,useRegex bool,level,service string)(func(logs.Event)bool,error){
  var expression *regexp.Regexp
  if useRegex&&term!=""{
@@ -176,6 +208,7 @@ func usage(w io.Writer){
   dynar -n apollo --once --since 24h
   dynar -n apollo --source prod --search timeout --level ERROR
   dynar -n apollo --source qa --cluster tkgs-qa --output ndjson
+  dynar -n apollo --once --group
 
 Credentials: DYNAR_TOKEN, or DYNAR_<SOURCE>_TOKEN (e.g. DYNAR_PROD_TOKEN).
 OAuth client credentials: DYNAR_CLIENT_ID and DYNAR_CLIENT_SECRET (or source-prefixed).
@@ -183,6 +216,7 @@ Tokens are read from environment variables, never saved in source configuration.
 
 Options: -n, --namespace, --source, --cluster, --since, --refresh,
          --once, --no-follow, --search, --regex, --level, --service,
-         --output text|ndjson, --limit, --max-queries, --buffer-lines.
+         --output text|ndjson, --no-ui, --group (snapshots),
+         --limit, --max-queries, --buffer-lines.
 `)
 }
