@@ -41,7 +41,7 @@ func FromRecord(rec map[string]any, source string)(Event,error){
  e:=Event{
   Timestamp:at, Source:source,
   Namespace:stringField(rec,"k8s.namespace.name"),
-  Service:stringField(rec,"k8s.workload.name","k8s.deployment.name","dt.process.name"),
+  Service:stringField(rec,"k8s.workload.name","k8s.deployment.name","k8s.statefulset.name","k8s.daemonset.name","k8s.job.name","k8s.cronjob.name","k8s.container.name","dt.process.name"),
   Pod:stringField(rec,"k8s.pod.name"),
   Container:stringField(rec,"k8s.container.name"),
   Level:strings.ToUpper(stringField(rec,"loglevel","severity","level")),
@@ -49,11 +49,11 @@ func FromRecord(rec map[string]any, source string)(Event,error){
   TraceID:stringField(rec,"trace_id","trace.id"),
   RequestID:stringField(rec,"request_id","request.id"),
  }
- if e.Service==""{e.Service=e.Pod}
+ if e.Service==""{e.Service=WorkloadFromPod(e.Pod)}
  if e.Service==""{e.Service="unknown"}
- if e.Level==""{e.Level="INFO"}
+ if e.Level==""{e.Level=GuessLevel(e.Message)}
  if e.Message==""{e.Message="(empty message)"}
- native:=stringField(rec,"dt.system.id","id")
+ native:=stringField(rec,"id","event.id")
  if native!=""{e.Identity=source+"/"+native}else{
   hash:=sha256.Sum256([]byte(e.Timestamp.UTC().Format(time.RFC3339Nano)+"\x00"+source+"\x00"+e.Pod+"\x00"+e.Container+"\x00"+e.Message+"\x00"+e.TraceID))
   e.Identity=hex.EncodeToString(hash[:])
