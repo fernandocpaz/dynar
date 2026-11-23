@@ -21,7 +21,7 @@ type Broker struct{
  source,namespace,cluster string
  refresh,history time.Duration
  store *logs.Store
- subs map[chan logs.Event]struct{}
+ subs map[string]map[chan logs.Event]struct{}
  lastEnd time.Time
  lastError error
  warnings []string
@@ -31,7 +31,7 @@ func NewBroker(c Collector,source,namespace,cluster string,since,refresh time.Du
  if refresh<time.Second{refresh=10*time.Second}
  if since<=0{since=30*time.Minute}
  return &Broker{collector:c,source:source,namespace:namespace,cluster:cluster,
-   refresh:refresh,history:since,store:logs.NewStore(buffer),subs:make(map[chan logs.Event]struct{})}
+   refresh:refresh,history:since,store:logs.NewStore(buffer),subs:make(map[string]map[chan logs.Event]struct{})}
 }
 func(b *Broker) Bootstrap(ctx context.Context)error{
  end:=time.Now().UTC()
@@ -68,7 +68,7 @@ func (b *Broker) Run(ctx context.Context){
     b.lastEnd=end
     newEvents:=b.store.Add(events)
     for _,ev:=range newEvents{
-     for subscriber:=range b.subs{
+     for subscriber:=range b.subs[recordSource(ev).Key()]{
       select {case subscriber<-ev:default:b.overflow++}
      }
     }
@@ -140,9 +140,11 @@ func (b *Broker) Subscribe(ctx context.Context,source logui.Source,out chan<- lo
  for _,ev:=range b.store.Items{
   if recordSource(ev).Key()==source.Key(){history=append(history,ev)}
  }
- b.subs[sub]=struct{}{}
+ key:=source.Key()
+ if b.subs[key]==nil{b.subs[key]=make(map[chan logs.Event]struct{})}
+ b.subs[key][sub]=struct{}{}
  b.mu.Unlock()
- defer func(){b.mu.Lock();delete(b.subs,sub);b.mu.Unlock()}()
+ defer func(){b.mu.Lock();delete(b.subs[key],sub);if len(b.subs[key])==0{delete(b.subs,key)};b.mu.Unlock()}()
  send:=func(e logs.Event)error{
   select {case out<-asLogUI(e):return nil;case <-ctx.Done():return ctx.Err()}
  }
