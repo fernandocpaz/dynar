@@ -48,6 +48,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  group:=fs.Bool("group",false,"Group snapshot text output by service (with --once)")
  splitPanes:=fs.Bool("split-panes",false,"Open Windows Terminal panes for selected workloads")
  serviceExact:=fs.Bool("service-exact",false,"Match exact workload name (used for split pane children)")
+ filterFile:=fs.String("filter-file","","Shared live filter state file for split panes")
  all:=fs.Bool("all",false,"Open all services together without the workload picker")
  noUpdateCheck:=fs.Bool("no-update-check",false,"Skip startup release check")
  if err:=fs.Parse(args);err!=nil{return 2}
@@ -90,7 +91,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
    Source:name,Namespace:ns,Cluster:*cluster,Service:*service,
    Since:*since,Refresh:*refresh,BufferLines:*bufferLines,
    NoUpdateCheck:*noUpdateCheck,All:*all,Search:*search,Regex:*regex,
-   SplitPanes:*splitPanes,ServiceExact:*serviceExact,Level:*level,
+   SplitPanes:*splitPanes,ServiceExact:*serviceExact,Level:*level,FilterFile:*filterFile,
   },stdout,stderr)
   if err!=nil{fmt.Fprintln(stderr,"DynaR:",err);return 1}
   if restart{return RestartExitCode}

@@ -4,6 +4,7 @@ import (
  "context"
  "bufio"
  "os"
+ "path/filepath"
  "fmt"
  "io"
  "sort"
@@ -24,6 +25,7 @@ type SharedOptions struct {
  SplitPanes bool
  ServiceExact bool
  Level string
+ FilterFile string
 }
 
 func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stderr io.Writer)(bool,error){
@@ -65,7 +67,12 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    selected=make(map[string]bool,len(choice.Workloads))
    for _,app:=range choice.Workloads{selected[app]=true}
   }
-  if opts.SplitPanes{
+  if opts.SplitPanes && !record{
+   // Same shared filter file format as Kubernetes tailg's --split-panes.
+   // Both the text query and F1 matches-only mode remain synchronized.
+   tmp:=filepath.Join(os.TempDir(),fmt.Sprintf("dynar-filter-%d-%d.txt",os.Getpid(),time.Now().UnixNano()))
+   if err:=logui.InitializeSharedFilter(tmp,initialQuery(opts));err!=nil{return false,fmt.Errorf("initialize split-pane filter: %w",err)}
+   opts.FilterFile=tmp
    names:=make([]string,0,len(apps))
    for _,app:=range apps{
     if len(selected)==0 || selected[app.Name]{names=append(names,app.Name)}
@@ -100,17 +107,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    Namespace:opts.Namespace,Provider:opts.Source,Target:target,
    Sources:list,RefreshInterval:opts.Refresh,BufferLines:opts.BufferLines,
    Color:true,ShowPod:true,UseConfiguredAI:true,
-   InitialFilter:func()string{
-    initial:=""
-    if !opts.Regex{initial=opts.Search}
-    if opts.Level!=""{
-     level:=strings.ToUpper(opts.Level)
-     switch level{case "ERROR","ERR":level="ERR";case "WARNING","WARN","WRN":level="WRN";case "FATAL","FTL":level="FTL";case "INFO","INF":level="INF"}
-     if initial!=""{initial+=" "}
-     initial+="level:"+level
-    }
-    return initial
-   }(),
+   InitialFilter:initialQuery(opts),FilterFile:opts.FilterFile,
    RegexFilter:func()string{if opts.Regex{return opts.Search};return ""}(),
    Stream:broker.Subscribe,
    Inventory:func(ctx context.Context)([]logui.Source,error){
@@ -152,4 +149,16 @@ func promptDynaRUpdate(ctx context.Context,stderr io.Writer)(bool,error){
  fmt.Fprintln(stderr,"Downloading and verifying update...")
  if err:=client.Install(ctx,release);err!=nil{return false,err}
  return true,nil
+}
+
+func initialQuery(opts SharedOptions)string{
+ initial:=""
+ if !opts.Regex{initial=opts.Search}
+ if opts.Level!=""{
+  level:=strings.ToUpper(opts.Level)
+  switch level{case "ERROR","ERR":level="ERR";case "WARNING","WARN","WRN":level="WRN";case "FATAL","FTL":level="FTL";case "INFO","INF":level="INF"}
+  if initial!=""{initial+=" "}
+  initial+="level:"+level
+ }
+ return initial
 }

@@ -18,3 +18,11 @@ func TestSplitPaneArgsUseExactWorkloadsAndPreserveSelection(t *testing.T){
 func TestSplitPaneArgsEmptySelection(t *testing.T){
  if got:=SplitPaneArgs(nil,SharedOptions{},"dynar.exe");got!=nil{t.Fatalf("expected no panes: %v",got)}
 }
+
+func TestSharedFilterPassedIntoEveryPane(t *testing.T){
+ opts:=SharedOptions{Namespace:"apollo",FilterFile:"C:/Temp/shared-filter.txt"}
+ got:=SplitPaneArgs([]string{"encounter","patient"},opts,"dynar.exe")
+ joined:=strings.Join(got," ")
+ if strings.Count(joined,"--filter-file")!=2{t.Fatalf("each pane must read same shared filter: %v",got)}
+ if strings.Count(joined,"C:/Temp/shared-filter.txt")!=2{t.Fatalf("filter file mismatch: %v",got)}
+}

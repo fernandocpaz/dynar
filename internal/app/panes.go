@@ -22,6 +22,7 @@ func SplitPaneArgs(workloads []string,opts SharedOptions,executable string)[]str
   if opts.Refresh>0{args=append(args,"--refresh",opts.Refresh.String())}
   if opts.BufferLines>0{args=append(args,"--buffer-lines",strconv.Itoa(opts.BufferLines))}
   if opts.Search!=""{args=append(args,"--search",opts.Search)}
+  if opts.FilterFile!=""{args=append(args,"--filter-file",opts.FilterFile)}
   if opts.Regex{args=append(args,"--regex")}
   if opts.Level!=""{args=append(args,"--level",opts.Level)}
   return args

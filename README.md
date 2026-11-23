@@ -165,3 +165,9 @@ independently**. For high-volume namespaces, opening a single multi-service
 session is more API-efficient. The split feature requires Windows Terminal
 (`wt.exe`) and Windows; WSL/Linux/macOS continue using the shared in-process
 log viewer.
+
+Split panes share a single tailg filter-state file, so typing a live filter and
+pressing F1 in one pane synchronizes the text query and matches-only mode to
+the others. DynaR uses the same filter synchronization implementation as tailg.
+The picker F action always opens a single recording session rather than
+launching split panes, preserving the live-only recording cutoff.
