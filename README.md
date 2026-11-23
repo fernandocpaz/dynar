@@ -27,26 +27,41 @@ dynar -n apollo --no-update-check   # disable automatic startup check
 
 Set `DYNAR_NO_UPDATE_CHECK=1` to disable checks by default. Updates require a writable install directory. Standalone snapshots and redirected output never prompt. Development builds do not offer automatic updates. Published releases include binaries for Linux, Windows, and macOS where supported; existing source credentials/configuration are not modified.
 
-## Terminal UI: one panel per service
+## Terminal UI — the actual tailg picker and log viewer
 
-In an interactive terminal, `dynar -n apollo` opens tailg's workload picker, then tailg's real full-screen log viewer for the selected workload(s). Select several with Space; use Enter to open.  It loads all logs using one namespace-wide Grail query, then automatically groups by `k8s.workload.name`, deployment, StatefulSet/DaemonSet/Job, container, or inferred pod workload. The shared log viewer formats Serilog/JSON, colored ERR/WRN/INF severity, timestamps, and multiline exceptions using tailg's production renderer. Terminal widths determine whether panels appear in one, two or three columns. Tab selects a workload; Enter maximizes it for scrolling.
+Running \`dynar -n apollo\` queries all accessible logs in the namespace once,
+then opens the **real tailg workload picker**. Use Up/Down to navigate, Space
+to select multiple services, and Enter to open their log streams. The viewer
+is tailg's production terminal implementation, not the old DynaR prototype
+grid. Logs are formatted using tailg's original Serilog, JSON, date grouping,
+severity colors, exception details and wrapping.
 
 | Key | Behavior |
 | --- | --- |
-| Tab / Shift+Tab | Select next / previous service |
-| Enter / Esc | Maximize service / return to grid |
-| A | Combined timeline across all services |
-| / | Search across all services and trace IDs |
-| F1 | Toggle only matching messages |
-| F3 | Toggle errors only |
-| C | Clear search |
-| Up/Down / PgUp/PgDn | Scroll in maximized view; select or paginate in grid |
-| Space / R | Pause/resume live polling / refresh now |
-| Q / ? | Quit / keyboard help |
+| Up/Down, Space, Enter | Picker navigation, multi-select, open selected workloads |
+| Type in filter bar | Search live and retained history using tailg's exact query syntax |
+| F1 | Toggle matches-only / surrounding context |
+| F3 | Open full ERR/FTL history for the selected pod |
+| F5 | Heartbeat analysis |
+| F6 | Trace correlation |
+| F8 | Issue radar |
+| F9 | Traffic and latency analytics / charts |
+| F10 | Security radar |
+| S | Security assessment for the selected log |
+| Enter | Open the highlighted full log detail |
+| A (in detail) | AI explanation (if configured and explicitly invoked) |
+| Esc | Close current detail/diagnostic view |
+| Q / Ctrl+C | Leave viewer; return to picker or exit |
 
-`--search` initially restricts displayed messages in UI; F1 toggles between all messages (matches highlighted) and matching-only. Use `--no-ui` for traditional streaming, or `--once --group` to print a static service-by-service report. Redirected output and NDJSON always use noninteractive mode, preserving automation.
+The picker F action for live-only recording is being brought across as a
+separate adapter feature. \`--all\` intentionally skips the workload picker and
+opens one combined timeline. \`--no-ui\`, \`--once --group\`, and redirected
+NDJSON output remain available for automation.
 
-The terminal will never silently claim full log coverage: query limits, sampling, permissions, and missing namespace attributes still apply. The UI shows the latest query warning.
+In interactive mode, \`--search\` preloads a tailg filter; \`--regex --search\`
+uses tailg's regular-expression include mechanism. \`F1\` changes the
+match/context display. Only logs ingested and accessible in Dynatrace can be
+displayed; retention, permissions, sampling and query budgets still apply.
 
 The token must have permission to query Grail logs, including `storage:logs:read` and applicable bucket read permissions. A Dynatrace **platform token** or OAuth2 access token works with the Platform Query API; classic `Api-Token` credentials do not. Keep tokens out of source control and command-line arguments. An alternative is OAuth client credentials, configured using `DYNAR_PROD_CLIENT_ID` and `DYNAR_PROD_CLIENT_SECRET`.
 
