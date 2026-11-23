@@ -46,6 +46,8 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  output:=fs.String("output","text","text or ndjson")
  noUI:=fs.Bool("no-ui",false,"Disable full-screen interactive mode")
  group:=fs.Bool("group",false,"Group snapshot text output by service (with --once)")
+ splitPanes:=fs.Bool("split-panes",false,"Open Windows Terminal panes for selected workloads")
+ serviceExact:=fs.Bool("service-exact",false,"Match exact workload name (used for split pane children)")
  all:=fs.Bool("all",false,"Open all services together without the workload picker")
  noUpdateCheck:=fs.Bool("no-update-check",false,"Skip startup release check")
  if err:=fs.Parse(args);err!=nil{return 2}
@@ -61,6 +63,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  if *limit<1||*limit>100000||*maxQueries<1||*maxQueries>256||*bufferLines<1{fmt.Fprintln(stderr,"invalid --limit, --max-queries, or --buffer-lines");return 2}
  if *output!="text"&&*output!="ndjson"{fmt.Fprintln(stderr,"--output must be text or ndjson");return 2}
  if *group && (!(*once||*noFollow) || *output!="text"){fmt.Fprintln(stderr,"--group requires --once and --output text");return 2}
+ if *splitPanes && (*once||*noFollow||*noUI||*output!="text"){fmt.Fprintln(stderr,"--split-panes requires interactive live text mode");return 2}
  if len(ns)>253||strings.ContainsAny(ns,"\r\n\x00"){fmt.Fprintln(stderr,"invalid namespace");return 2}
  matcher,err:=makeMatcher(*search,*regex,*level,*service)
  if err!=nil{fmt.Fprintln(stderr,err);return 2}
@@ -87,6 +90,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
    Source:name,Namespace:ns,Cluster:*cluster,Service:*service,
    Since:*since,Refresh:*refresh,BufferLines:*bufferLines,
    NoUpdateCheck:*noUpdateCheck,All:*all,Search:*search,Regex:*regex,
+   SplitPanes:*splitPanes,ServiceExact:*serviceExact,Level:*level,
   },stdout,stderr)
   if err!=nil{fmt.Fprintln(stderr,"DynaR:",err);return 1}
   if restart{return RestartExitCode}
@@ -209,6 +213,7 @@ func usage(w io.Writer){
   dynar -n apollo --source qa --cluster tkgs-qa --output ndjson
   dynar -n apollo --once --group
   dynar -n apollo --all
+  dynar -n apollo --split-panes
   dynar update --check
   dynar update
 
@@ -218,7 +223,8 @@ Tokens are read from environment variables, never saved in source configuration.
 
 Options: -n, --namespace, --source, --cluster, --since, --refresh,
          --once, --no-follow, --search, --regex, --level, --service,
-         --output text|ndjson, --no-ui, --group (snapshots), --all, --no-update-check,
+         --output text|ndjson, --no-ui, --group (snapshots), --all,
+         --split-panes, --no-update-check,
          --limit, --max-queries, --buffer-lines.
 `)
 }

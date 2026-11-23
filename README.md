@@ -148,3 +148,20 @@ records only events timestamped **at or after the F keypress**; the initial
 historical buffer is not written. Captures contain original raw messages,
 workload, pod, container, timestamp, level, trace ID, and request ID, intended
 for downstream AI investigation. Tailg's in-view recording path can be copied.
+
+## Windows Terminal split panes (tailg-compatible)
+
+```powershell
+dynar -n apollo --split-panes
+```
+
+Pick several workloads with Space and press Enter. DynaR opens one Windows
+Terminal pane per selected service with the same alternating vertical/horizontal
+split arrangement as tailg. Each pane preserves the configured Dynatrace source,
+cluster, lookback and search settings, with its own tailg log viewer.
+
+Like tailg's separate-process panes, **each DynaR pane queries Dynatrace
+independently**. For high-volume namespaces, opening a single multi-service
+session is more API-efficient. The split feature requires Windows Terminal
+(`wt.exe`) and Windows; WSL/Linux/macOS continue using the shared in-process
+log viewer.

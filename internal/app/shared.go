@@ -21,6 +21,9 @@ type SharedOptions struct {
  BufferLines int
  NoUpdateCheck bool
  All bool
+ SplitPanes bool
+ ServiceExact bool
+ Level string
 }
 
 func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stderr io.Writer)(bool,error){
@@ -47,9 +50,9 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
   case opts.Service!="":
    selected=make(map[string]bool)
    for _,app:=range apps{
-    if strings.Contains(strings.ToLower(app.Name),strings.ToLower(opts.Service)){
-     selected[app.Name]=true
-    }
+    match:=strings.Contains(strings.ToLower(app.Name),strings.ToLower(opts.Service))
+    if opts.ServiceExact{match=strings.EqualFold(app.Name,opts.Service)}
+    if match{selected[app.Name]=true}
    }
    if len(selected)==0{return false,fmt.Errorf("no matching workload for --service %q",opts.Service)}
   default:
@@ -61,6 +64,15 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    recordFrom=choice.RecordFrom
    selected=make(map[string]bool,len(choice.Workloads))
    for _,app:=range choice.Workloads{selected[app]=true}
+  }
+  if opts.SplitPanes{
+   names:=make([]string,0,len(apps))
+   for _,app:=range apps{
+    if len(selected)==0 || selected[app.Name]{names=append(names,app.Name)}
+   }
+   if err:=LaunchSplitPanes(names,opts);err!=nil{return false,err}
+   fmt.Fprintf(stderr,"Opened %d DynaR workload panes in Windows Terminal.\n",len(names))
+   return false,nil
   }
   list:=broker.Inventory(selected)
   if len(list)==0{fmt.Fprintln(stderr,"No streams available for selected workloads");continue}
@@ -88,7 +100,17 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    Namespace:opts.Namespace,Provider:opts.Source,Target:target,
    Sources:list,RefreshInterval:opts.Refresh,BufferLines:opts.BufferLines,
    Color:true,ShowPod:true,UseConfiguredAI:true,
-   InitialFilter:func()string{if opts.Regex{return ""};return opts.Search}(),
+   InitialFilter:func()string{
+    initial:=""
+    if !opts.Regex{initial=opts.Search}
+    if opts.Level!=""{
+     level:=strings.ToUpper(opts.Level)
+     switch level{case "ERROR","ERR":level="ERR";case "WARNING","WARN","WRN":level="WRN";case "FATAL","FTL":level="FTL";case "INFO","INF":level="INF"}
+     if initial!=""{initial+=" "}
+     initial+="level:"+level
+    }
+    return initial
+   }(),
    RegexFilter:func()string{if opts.Regex{return opts.Search};return ""}(),
    Stream:broker.Subscribe,
    Inventory:func(ctx context.Context)([]logui.Source,error){
