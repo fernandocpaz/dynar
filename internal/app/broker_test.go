@@ -64,7 +64,7 @@ func TestLogDetailsRestoresRetainedStackFrames(t *testing.T){
  now:=time.Now().UTC().Truncate(time.Second)
  records:=[]map[string]any{
   {"timestamp":now.Add(-4*time.Second).Format(time.RFC3339Nano),"content":"[ERR] failure","k8s.pod.name":"encounter-pod","k8s.container.name":"app","k8s.deployment.name":"encounter","loglevel":"ERROR"},
-  {"timestamp":now.Add(-3*time.Second).Format(time.RFC3339Nano),"content":"    at Work.Run()","k8s.pod.name":"encounter-pod","k8s.container.name":"app"},
+  {"timestamp":now.Add(-3*time.Second).Format(time.RFC3339Nano),"content":"    at Work.Run()","k8s.pod.name":"encounter-pod","k8s.container.name":"app","k8s.deployment.name":"encounter"},
   {"timestamp":now.Add(-2*time.Second).Format(time.RFC3339Nano),"content":"[INF] success","k8s.pod.name":"encounter-pod","k8s.container.name":"app"},
  }
  c:=Collector{Limit:100,MaxQueries:5,Query:func(_ context.Context,_,_ string,_,_ time.Time,_ int)(dynatrace.Result,error){return dynatrace.Result{Records:records},nil}}
