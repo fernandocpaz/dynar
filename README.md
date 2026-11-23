@@ -29,7 +29,7 @@ Set `DYNAR_NO_UPDATE_CHECK=1` to disable checks by default. Updates require a wr
 
 ## Terminal UI — the actual tailg picker and log viewer
 
-Running \`dynar -n apollo\` queries all accessible logs in the namespace once,
+Running `dynar -n apollo` queries all accessible logs in the namespace once,
 then opens the **real tailg workload picker**. Use Up/Down to navigate, Space
 to select multiple services, and Enter to open their log streams. The viewer
 is tailg's production terminal implementation, not the old DynaR prototype
@@ -54,12 +54,12 @@ severity colors, exception details and wrapping.
 | Q / Ctrl+C | Leave viewer; return to picker or exit |
 
 The picker F action for live-only recording is being brought across as a
-separate adapter feature. \`--all\` intentionally skips the workload picker and
-opens one combined timeline. \`--no-ui\`, \`--once --group\`, and redirected
+separate adapter feature. `--all` intentionally skips the workload picker and
+opens one combined timeline. `--no-ui`, `--once --group`, and redirected
 NDJSON output remain available for automation.
 
-In interactive mode, \`--search\` preloads a tailg filter; \`--regex --search\`
-uses tailg's regular-expression include mechanism. \`F1\` changes the
+In interactive mode, `--search` preloads a tailg filter; `--regex --search`
+uses tailg's regular-expression include mechanism. `F1` changes the
 match/context display. Only logs ingested and accessible in Dynatrace can be
 displayed; retention, permissions, sampling and query budgets still apply.
 
