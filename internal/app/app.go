@@ -14,7 +14,6 @@ import (
  "github.com/fernandocpaz/dynar/internal/config"
  "github.com/fernandocpaz/dynar/internal/dynatrace"
  "github.com/fernandocpaz/dynar/internal/logs"
- "github.com/fernandocpaz/dynar/internal/update"
  )
 
 
