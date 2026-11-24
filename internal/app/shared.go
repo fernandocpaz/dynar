@@ -141,7 +141,8 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    Title:"DynaR | "+displaySourceCluster(opts)+" | "+opts.Namespace,
    Namespace:opts.Namespace,Provider:displaySourceCluster(opts),Target:target,
    Sources:list,RefreshInterval:opts.Refresh,BufferLines:opts.BufferLines,
-   Color:true,ShowPod:true,UseConfiguredAI:true,
+   // Pod names remain in source metadata, not the rendered log prefix.
+   Color:true,ShowPod:false,UseConfiguredAI:true,
    InitialFilter:initialQuery(opts),FilterFile:opts.FilterFile,
    RegexFilter:func()string{if opts.Regex{return opts.Search};return ""}(),
    Stream:broker.Subscribe,
