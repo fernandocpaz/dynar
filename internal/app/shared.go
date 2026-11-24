@@ -60,8 +60,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
  timeFile:=configPath+".time-range"
  broker:=NewBroker(c,opts.Source,opts.Namespace,opts.Cluster,opts.Since,opts.Refresh,opts.BufferLines)
  broker.timeFile=timeFile
- fmt.Fprintln(stderr, loadingNamespaceMessage(opts))
- if err:=broker.Bootstrap(ctx);err!=nil{return false,fmt.Errorf("load namespace: %w",err)}
+ if err:=withLoading(stderr,loadingNamespaceMessage(opts),func()error{return broker.Bootstrap(ctx)});err!=nil{return false,fmt.Errorf("load namespace: %w",err)}
  if err:=broker.Status();err!=nil{fmt.Fprintln(stderr,"WARNING: Dynatrace returned incomplete history:",err)}
  go broker.Run(ctx)
  for {

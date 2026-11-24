@@ -39,7 +39,7 @@ func updateCommand(ctx context.Context,args []string,stdout,stderr io.Writer)int
         fmt.Fprintln(stdout,"Already up to date; no changes made.")
         return 0
     }
-    if err:=client.Install(ctx,release);err!=nil{
+    if err:=withLoading(stderr,"DynaR: downloading and verifying update...",func()error{return client.Install(ctx,release)});err!=nil{
         fmt.Fprintf(stderr,"Update failed: %v\nManual install: go install github.com/fernandocpaz/dynar/cmd/dynar@%s\n",err,release.Version)
         return 1
     }
