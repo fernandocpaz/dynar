@@ -143,7 +143,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    Namespace:opts.Namespace,Provider:displaySourceCluster(opts),Target:target,
    Sources:list,RefreshInterval:opts.Refresh,BufferLines:opts.BufferLines,
    // Pod names remain in source metadata, not the rendered log prefix.
-   Color:true,ShowPod:false,UseConfiguredAI:true,
+   Color:true,ShowPod:false,UseConfiguredAI:true,TraceMarkers:true,CleanLogs:true,
    InitialFilter:initialQuery(opts),FilterFile:opts.FilterFile,
    RegexFilter:func()string{if opts.Regex{return opts.Search};return ""}(),
    Stream:broker.Subscribe,

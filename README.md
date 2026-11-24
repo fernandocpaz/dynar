@@ -292,3 +292,23 @@ retained, DynaR stays on the correlated logs. The current span query is
 bounded to 5,000 records per trace; absence of results does not prove no
 spans exist outside the queried time window. No additional AI transmission
 or raw SQL statement retrieval is performed by this feature.
+
+## Compact trace markers and clean log display
+
+The interactive log timeline displays compact markers from validated local IDs:
+
+- `[T]`: a trace ID is available; press F6 to investigate.
+- `[TS]`: both a trace ID and span ID are available.
+- `[S]`: a span ID alone; a trace ID is still required for F6.
+- No marker: neither ID is available.
+
+Markers do not confirm that Grail retained any spans. No additional network
+requests are made just to render the markers.
+
+Clean display is on by default. Routine non-severe HttpMessageHandler cleanup
+cycles and handler expiry, and successful health-check completion messages,
+are hidden from the normal timeline. Warnings, errors, unknown levels, and
+known slow/failed HTTP requests stay visible. **F11** toggles clean/raw display
+in the current viewer. Explicit searches bypass this suppression, and retained
+raw logs, recordings, trace views and analytics remain unaffected. This is a
+local display filter, not a reduction of Dynatrace ingestion/query volume.
