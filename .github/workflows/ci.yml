@@ -35,7 +35,12 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           go mod tidy
-          if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve Go dependencies' }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host 'Retrying with the existing tailg-only checksum indexing workaround.'
+            $env:GONOSUMDB = 'github.com/fernandocpaz/tailg'
+            go mod tidy
+            if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve Go dependencies' }
+          }
           $env:GOOS = 'windows'
           $env:CGO_ENABLED = '0'
           New-Item -ItemType Directory -Force dist | Out-Null
