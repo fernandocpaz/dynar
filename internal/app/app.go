@@ -194,7 +194,7 @@ func sources(args []string,stdout,stderr io.Writer)int{
   sort.Strings(names)
   for _,name:=range names{
    mark:=" ";if name==cfg.Default{mark="*"}
-   fmt.Fprintf(stdout,"%s %-18s %s  token-env=%sTOKEN\n",mark,name,cfg.Sources[name].URL,config.TokenPrefix(name))
+   fmt.Fprintf(stdout,"%s %-18s %s  credentials=%s\n",mark,name,cfg.Sources[name].URL,credentials.CredentialSource(name,credentials.NativeStore{}))
   }
   if len(names)==0{fmt.Fprintln(stdout,"No sources configured")}
   return 0
