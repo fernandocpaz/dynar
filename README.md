@@ -333,7 +333,7 @@ local display filter, not a reduction of Dynatrace ingestion/query volume.
 Press **F12** in any interactive log viewer. All DynaR log windows using the same user configuration automatically adopt the same timeframe, including separately opened Windows Terminal panes. The range is persisted independently of text filters and credentials; selecting **L** in the time menu restores the rolling default (`--since`, normally 30 minutes).
 
 - **1–9**: rolling last 5m, 15m, 30m, 1h, 2h, 6h, 12h, 24h, or 7d. The selected window continues moving as live events arrive.
-- **C**: exact local From/To dates (YYYY-MM-DD HH:MM[:SS]) or RFC3339 timestamps with offsets. Tab switches fields. Enter applies.
+- **C**: custom date/time picker. No timestamp typing: Left/Right selects year, month, day, hour, minute or second; Up/Down changes it; Tab switches From/To. +/- changes the selected component by five, N sets the end to now, and PgUp/PgDn shifts the full range by one day. The preview shows the exact interval, duration and local UTC offsets. Invalid calendar dates, future dates and crossed endpoints are automatically corrected; Enter applies to all windows, Esc cancels.
 - **F**: freeze current interval; **A**: center on the selected log (±5 minutes, clamped to now). **T/Y**: today so far / yesterday.
 - **Left/Right**: move by one interval; **+/-**: zoom in/out; **R**: reload; **L**: live default. Alt+Left/Right shifts directly from the main log view.
 - The time bar shows the current range, live/fixed state, loading and incomplete-result notices. Exact intervals are bounded to 31 days per request and by the existing query and buffer limits. Narrow the range if it is incomplete.
