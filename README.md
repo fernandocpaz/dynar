@@ -10,27 +10,30 @@ Open a new terminal and run:
 
 ```powershell
 dynar version
-dynar
+dynar -n demo-shop --monitor
 ```
 
 DynaR's own first-run setup prompts for your Dynatrace URL and credentials if they are missing. The installer does not request, transmit, or remove these settings. Subsequent releases are installed with `dynar update`; you do not need to download Setup again. Uninstall through Windows Installed apps; configuration and credentials are preserved. If another copy of DynaR is already on PATH, use `Get-Command dynar -All` to identify it before installing. The setup is not currently code signed, so Windows may display an unknown-publisher or SmartScreen warning; consult your organization's software policy.
 
 For Linux and macOS, the [release assets](https://github.com/fernandocpaz/dynar/releases/latest) include portable native binaries. The Go installation method below is optional for developers.
 
-## Default invocation
+## Getting started
 
-Running `dynar` with no arguments is equivalent to:
+All namespace, cluster, workload and tenant names below are fictional examples.
+Replace them with your own environment's values before running commands.
+
+To open the interactive workload monitor for a specific environment:
 
 ```bash
-dynar -n apollo --cluster tkgs-prod --monitor
+dynar -n demo-shop --cluster example-production --monitor
 ```
 
-This default applies **only when no arguments are supplied**. Explicit commands
-retain their existing behavior (for example, `dynar -n apollo --cluster tkgs-qa`,
-`dynar --help`, `dynar update`, and `dynar source list`).
-Configure a default Dynatrace source and credentials first; these CLI defaults
-do not create a Dynatrace connection automatically.
-
+Running `dynar` without arguments opens monitor mode using the application's
+built-in namespace and cluster defaults. For portability, specify your own
+namespace with `-n` and, if needed, your cluster with `--cluster`. Omit
+`--cluster` to query all accessible clusters for the selected namespace.
+Configure your Dynatrace source and credentials first; these command-line
+options do not create a Dynatrace connection automatically.
 
 Install Go 1.25 or later:
 
@@ -38,7 +41,7 @@ Install Go 1.25 or later:
 go install github.com/fernandocpaz/dynar/cmd/dynar@latest
 dynar source add prod --url https://YOUR-TENANT.apps.dynatrace.com --default
 export DYNAR_PROD_TOKEN='YOUR_DYNATRACE_PLATFORM_TOKEN'
-dynar
+dynar -n demo-shop --cluster example-production --monitor
 ```
 
 On PowerShell, use `$env:DYNAR_PROD_TOKEN = 'YOUR_DYNATRACE_PLATFORM_TOKEN'` instead of `export`.
@@ -50,14 +53,14 @@ DynaR checks GitHub's latest stable release once at interactive startup, without
 ```bash
 dynar update --check     # compare installed vs latest stable release
 dynar update             # install verified release and exit
-dynar -n apollo --no-update-check   # disable automatic startup check
+dynar -n demo-shop --no-update-check   # disable automatic startup check
 ```
 
 Set `DYNAR_NO_UPDATE_CHECK=1` to disable checks by default. Updates require a writable install directory. Standalone snapshots and redirected output never prompt. Development builds do not offer automatic updates. Published releases include binaries for Linux, Windows, and macOS where supported; existing source credentials/configuration are not modified.
 
 ## Terminal UI — the actual tailg picker and log viewer
 
-Running `dynar -n apollo` queries all accessible logs in the namespace once,
+Running `dynar -n demo-shop` queries all accessible logs in the namespace once,
 then opens the **real tailg workload picker**. Use Up/Down to navigate, Space
 to select multiple services, and Enter to open their log streams. The viewer
 is tailg's production terminal implementation, not the old DynaR prototype
@@ -96,22 +99,22 @@ The token must have permission to query Grail logs, including `storage:logs:read
 ## Primary commands
 
 ```bash
-dynar -n apollo                             # tailg workload picker → tailg live log viewer
-dynar -n apollo --source qa --cluster tkgs-qa
-dynar -n apollo --since 24h --once          # historical logs once
-dynar -n apollo --search 'timeout'          # text search across all services
-dynar -n apollo --level ERROR --service encounter
-dynar -n apollo --search 'timeout|failed' --regex
-dynar -n apollo --once --output ndjson > logs.ndjson
-dynar -n apollo --once --group                # snapshot grouped by service
-dynar -n apollo --no-ui                       # legacy plain streaming mode
-dynar -n apollo --all                         # open all services in a shared timeline
+dynar -n demo-shop                             # tailg workload picker → tailg live log viewer
+dynar -n demo-shop --source qa --cluster example-testing
+dynar -n demo-shop --since 24h --once          # historical logs once
+dynar -n demo-shop --search 'timeout'          # text search across all services
+dynar -n demo-shop --level ERROR --service checkout-api
+dynar -n demo-shop --search 'timeout|failed' --regex
+dynar -n demo-shop --once --output ndjson > logs.ndjson
+dynar -n demo-shop --once --group                # snapshot grouped by service
+dynar -n demo-shop --no-ui                       # legacy plain streaming mode
+dynar -n demo-shop --all                         # open all services in a shared timeline
 
 dynar source list
 dynar source use qa
 ```
 
-`dynar -n apollo` executes `fetch logs | filter k8s.namespace.name == "apollo"`, including log records for **every service, pod and container with that namespace attribute**. No application discovery or hardcoded service lists are needed. Default lookback: **30 minutes**. Default refresh: **10 seconds**. Override these with `--since` and `--refresh`.
+`dynar -n demo-shop` executes `fetch logs | filter k8s.namespace.name == "demo-shop"`, including log records for **every service, pod and container with that namespace attribute**. No application discovery or hardcoded service lists are needed. Default lookback: **30 minutes**. Default refresh: **10 seconds**. Override these with `--since` and `--refresh`.
 
 ## Data retrieval and reliability
 
@@ -154,8 +157,8 @@ Kubernetes-only picker actions (pod commands, CronJob execution, node diagnostic
 
 DynaR uses tailg's native filter/query parser for both live logs and historical
 results. Type in the search bar to use expressions such as
-`level:ERR service:encounter`, `trace:<32-char-id>` or `status:>=500`.
-`dynar -n apollo --search "timeout"` initializes that filter. With
+`level:ERR service:checkout-api`, `trace:<32-char-id>` or `status:>=500`.
+`dynar -n demo-shop --search "timeout"` initializes that filter. With
 `--regex --search "timeout|failed"`, DynaR uses tailg's include-regex
 formatter instead. `--since` controls the bounded historical lookup.
 
@@ -180,7 +183,7 @@ for downstream AI investigation. Tailg's in-view recording path can be copied.
 ## Windows Terminal split panes (tailg-compatible)
 
 ```powershell
-dynar -n apollo --split-panes
+dynar -n demo-shop --split-panes
 ```
 
 Pick several workloads with Space and press Enter. DynaR opens one Windows
@@ -226,9 +229,9 @@ samples rather than manufacture request rates or latencies.
 ## Dynatrace-backed workload health and resource monitoring
 
 ```bash
-dynar -n apollo                 # open tailg workload picker; press M to monitor
-dynar -n apollo --monitor       # start monitoring immediately
-dynar -n apollo --cluster tkgs-prod --monitor
+dynar -n demo-shop                 # open tailg workload picker; press M to monitor
+dynar -n demo-shop --monitor       # start monitoring immediately
+dynar -n demo-shop --cluster example-production --monitor
 ```
 
 **M** toggles a 30-second Dynatrace scan. The shared tailg picker shows log
@@ -258,10 +261,10 @@ proof of Kubernetes Deployment readiness. Monitor results may lag ingestion.
 ## Source label in terminal UI
 
 The **Source** label in the tailg-style workload picker and log viewer shows the
-selected Kubernetes cluster, such as `tkgs-prod` or `tkgs-qa`. If no cluster
+selected Kubernetes cluster, such as `example-production` or `example-testing`. If no cluster
 filter is selected, the label reads **all clusters** rather than implying a
 specific environment. This is display-only: `--source prod` still selects the
-configured Dynatrace connection and its credentials, while `--cluster tkgs-prod`
+configured Dynatrace connection and its credentials, while `--cluster example-production`
 scopes the Grail query. No stored source settings are changed.
 
 ## Multiple workloads and exact pod split panes
