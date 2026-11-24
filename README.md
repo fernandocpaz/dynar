@@ -171,3 +171,12 @@ pressing F1 in one pane synchronizes the text query and matches-only mode to
 the others. DynaR uses the same filter synchronization implementation as tailg.
 The picker F action always opens a single recording session rather than
 launching split panes, preserving the live-only recording cutoff.
+
+## Tailg-style interactive update dialog
+
+The startup update check now opens the **actual tailg modal** with DynaR branding.
+Tab/arrow keys select **Later** or **Update & restart**; Enter confirms, U updates,
+and Esc continues without updating. The network update check is performed only
+for stable interactive builds when `--no-update-check` is not specified.
+DynaR continues to use **its own** GitHub release, SHA-256 verification, and
+binary replacement logic; it never downloads or installs tailg as an update.

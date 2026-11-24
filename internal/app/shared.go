@@ -2,7 +2,6 @@ package app
 
 import (
  "context"
- "bufio"
  "os"
  "path/filepath"
  "fmt"
@@ -30,8 +29,9 @@ type SharedOptions struct {
 
 func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stderr io.Writer)(bool,error){
  if !opts.NoUpdateCheck && !isUpdateCheckDisabled() && StableBuild(){
-  restart,err:=promptDynaRUpdate(ctx,stderr)
+  restart,quit,err:=promptDynaRUpdate(ctx)
   if err!=nil{fmt.Fprintln(stderr,"DynaR update check:",err)}
+  if quit{return false,nil}
   if restart{return true,nil}
  }
  broker:=NewBroker(c,opts.Source,opts.Namespace,opts.Cluster,opts.Since,opts.Refresh,opts.BufferLines)
@@ -137,18 +137,19 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
 
 // A portable fallback for DynaR-specific verified updates. Unlike tailg's
 // updater this checks and installs assets from the independent dynar releases.
-func promptDynaRUpdate(ctx context.Context,stderr io.Writer)(bool,error){
+func promptDynaRUpdate(ctx context.Context)(restart,quit bool,err error){
  client:=update.NewSession(ctx,InstalledVersion())
+ client.Cleanup()
  release,available:=client.Offer(ctx)
- if !available{return false,nil}
- fmt.Fprintf(stderr,"\nDynaR update available: %s → %s\n",client.Version,release.Version)
- fmt.Fprint(stderr,"[Enter] Later    [u + Enter] Update & restart: ")
- input,err:=bufio.NewReader(os.Stdin).ReadString('\n')
- if err!=nil && len(input)==0{return false,err}
- if !strings.EqualFold(strings.TrimSpace(input),"u"){return false,nil}
- fmt.Fprintln(stderr,"Downloading and verifying update...")
- if err:=client.Install(ctx,release);err!=nil{return false,err}
- return true,nil
+ if !available{return false,false,nil}
+ // DynaR still owns the independently configured, SHA-256 verified updater.
+ // tailg supplies only the modal view and keyboard interaction.
+ return logui.PromptUpdate(ctx,logui.UpdateOffer{
+  Application:"DynaR",
+  Installed:client.Version,
+  Latest:release.Version,
+  Install:func(ctx context.Context)error{return client.Install(ctx,release)},
+ })
 }
 
 func initialQuery(opts SharedOptions)string{
