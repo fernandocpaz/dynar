@@ -23,7 +23,7 @@ Install Go 1.25 or later:
 go install github.com/fernandocpaz/dynar/cmd/dynar@latest
 dynar source add prod --url https://YOUR-TENANT.apps.dynatrace.com --default
 export DYNAR_PROD_TOKEN='YOUR_DYNATRACE_PLATFORM_TOKEN'
-dynar -n apollo
+dynar
 ```
 
 On PowerShell, use `$env:DYNAR_PROD_TOKEN = 'YOUR_DYNATRACE_PLATFORM_TOKEN'` instead of `export`.

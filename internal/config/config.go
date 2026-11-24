@@ -14,9 +14,26 @@ type Source struct { URL string `json:"url"` }
 type Config struct {
  Default string `json:"default"`
  Sources map[string]Source `json:"sources"`
+ Namespace string `json:"namespace,omitempty"`
+ Cluster string `json:"cluster,omitempty"`
+ Monitor *bool `json:"monitor,omitempty"`
 }
+const DefaultNamespace="apollo"
+const DefaultCluster="tkgs-prod"
 var validName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,48}$`)
 
+func(c Config)EffectiveNamespace()string{
+ if c.Namespace!=""{return c.Namespace}
+ return DefaultNamespace
+}
+func(c Config)EffectiveCluster()string{
+ if c.Cluster!=""{return c.Cluster}
+ return DefaultCluster
+}
+func(c Config)EffectiveMonitor()bool{
+ if c.Monitor!=nil{return *c.Monitor}
+ return true
+}
 func Path() (string,error) {
  if p := os.Getenv("DYNAR_CONFIG"); p!="" { return p,nil }
  dir,err:=os.UserConfigDir()
@@ -38,11 +55,12 @@ func (c Config) Save() error {
  dir:=filepath.Dir(path)
  if err=os.MkdirAll(dir,0700);err!=nil{return err}
  b,err:=json.MarshalIndent(c,"","  ");if err!=nil{return err}
- // Configuration contains URLs and names only, never secret tokens.
+ // Configuration contains URLs and nonsecret preferences ONLY.
  tmp,err:=os.CreateTemp(dir,".config-*");if err!=nil{return err}
  defer os.Remove(tmp.Name())
  if err=tmp.Chmod(0600);err!=nil{tmp.Close();return err}
- if _,err=tmp.Write(append(b,'\n'));err!=nil{tmp.Close();return err}
+ if _,err=tmp.Write(append(b,'
+'));err!=nil{tmp.Close();return err}
  if err=tmp.Close();err!=nil{return err}
  return os.Rename(tmp.Name(),path)
 }

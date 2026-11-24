@@ -12,6 +12,7 @@ import (
  "strings"
  "time"
  "github.com/fernandocpaz/dynar/internal/config"
+ "github.com/fernandocpaz/dynar/internal/credentials"
  "github.com/fernandocpaz/dynar/internal/dynatrace"
  "github.com/fernandocpaz/dynar/internal/logs"
  )
@@ -24,6 +25,8 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
    case "version","--version":fmt.Fprintln(stdout,BuildDescription());return 0
    case "update":return updateCommand(ctx,args[1:],stdout,stderr)
    case "source":return sources(args[1:],stdout,stderr)
+   case "setup":return configCommand([]string{"edit"},stdout,stderr)
+   case "config":return configCommand(args[1:],stdout,stderr)
   }
  }
  fs:=flag.NewFlagSet("dynar",flag.ContinueOnError)
@@ -59,7 +62,6 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
   if ns!=""{fmt.Fprintln(stderr,"use either -n or --namespace");return 2}
   ns=*nsLong
  }
- if ns==""{fmt.Fprintln(stderr,"namespace required: dynar -n apollo");return 2}
  if *since<=0||*since>30*24*time.Hour{fmt.Fprintln(stderr,"--since must be greater than zero and no more than 720h");return 2}
  if *refresh<time.Second{fmt.Fprintln(stderr,"--refresh must be at least 1s");return 2}
  if *limit<1||*limit>100000||*maxQueries<1||*maxQueries>256||*bufferLines<1{fmt.Fprintln(stderr,"invalid --limit, --max-queries, or --buffer-lines");return 2}
@@ -71,25 +73,36 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  if err!=nil{fmt.Fprintln(stderr,err);return 2}
  cfg,err:=config.Load()
  if err!=nil{fmt.Fprintln(stderr,err);return 1}
- name:=*source
- if name==""{name=cfg.Default}
- var base string
- if name!=""{
-  src,exists:=cfg.Sources[name]
-  if !exists{fmt.Fprintf(stderr,"unknown source %q; configure with: dynar source add %s --url https://TENANT.apps.dynatrace.com\n",name,name);return 2}
-  base=src.URL
- }else{
-  name="default"
-  base=config.Env("","URL")
+ // Bare dynar uses persisted preferences; the legacy apollo/tkgs-prod/M
+ // defaults remain in effect until changed in 'dynar config edit'.
+ if len(args)==0{
+  ns=cfg.EffectiveNamespace()
+  *cluster=cfg.EffectiveCluster()
+  *monitor=cfg.EffectiveMonitor()
  }
- if base==""{fmt.Fprintln(stderr,"no Dynatrace source configured. Run: dynar source add prod --url https://TENANT.apps.dynatrace.com --default");return 2}
- credentials:=dynatrace.Credentials{Token:config.Env(name,"TOKEN"),ClientID:config.Env(name,"CLIENT_ID"),ClientSecret:config.Env(name,"CLIENT_SECRET")}
- client,err:=dynatrace.NewClient(base,credentials)
+ if ns==""{ns=cfg.EffectiveNamespace()}
+ if len(ns)>253||strings.ContainsAny(ns,"\r\n\x00"){fmt.Fprintln(stderr,"invalid namespace");return 2}
+ cfg,name,auth,err:=requireConfiguration(cfg,*source,interactiveSetup(stderr),stderr)
+ if err!=nil{fmt.Fprintln(stderr,err);return 2}
+ // An initial setup may have changed the preferred defaults. Apply those
+ // settings immediately to the very first no-argument launch.
+ if len(args)==0{
+  ns=cfg.EffectiveNamespace()
+  *cluster=cfg.EffectiveCluster()
+  *monitor=cfg.EffectiveMonitor()
+ }
+ // Source URL may be saved or supplied entirely through environment vars.
+ var base string
+ if src,ok:=cfg.Sources[name];ok{base=src.URL}
+ if base==""{base=config.Env(name,"URL")}
+ if base==""{fmt.Fprintln(stderr,"Dynatrace URL missing: dynar config edit");return 2}
+ connection:=dynatrace.Credentials{Token:auth.Token,ClientID:auth.ClientID,ClientSecret:auth.ClientSecret}
+ client,err:=dynatrace.NewClient(base,connection)
  if err!=nil{fmt.Fprintln(stderr,err);return 2}
  collector:=Collector{Query:client.Query,Limit:*limit,MaxQueries:*maxQueries}
  follow:=!*once&&!*noFollow
  if follow && !*noUI && *output=="text" && interactiveTerminal(stdout) {
-  metricClient,err:=dynatrace.NewMetricsClient(base,credentials)
+  metricClient,err:=dynatrace.NewMetricsClient(base,connection)
   if err!=nil{fmt.Fprintln(stderr,err);return 2}
   restart,err:=sharedViewer(ctx,collector,SharedOptions{
    Source:name,Namespace:ns,Cluster:*cluster,Service:*service,
@@ -213,6 +226,9 @@ func usage(w io.Writer){
  fmt.Fprint(w,`DynaR - Dynatrace namespace-wide log explorer
 
   dynar                                      # apollo / tkgs-prod / monitor
+  dynar setup                                # interactive first-run setup
+  dynar config show                          # view settings, never secrets
+  dynar config edit                          # edit source/defaults/credentials
   dynar source add prod --url https://TENANT.apps.dynatrace.com --default
   dynar -n apollo
   dynar -n apollo --once --since 24h
@@ -227,7 +243,7 @@ func usage(w io.Writer){
 
 Credentials: DYNAR_TOKEN, or DYNAR_<SOURCE>_TOKEN (e.g. DYNAR_PROD_TOKEN).
 OAuth client credentials: DYNAR_CLIENT_ID and DYNAR_CLIENT_SECRET (or source-prefixed).
-Tokens are read from environment variables, never saved in source configuration.
+Tokens are read from environment variables or the native OS credential vault, never saved in source configuration.
 
 Options: -n, --namespace, --source, --cluster, --since, --refresh,
          --once, --no-follow, --search, --regex, --level, --service,
