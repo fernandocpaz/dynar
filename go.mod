@@ -38,3 +38,6 @@ require (
 )
 
 require github.com/fernandocpaz/tailg v0.1.57
+
+require github.com/zalando/go-keyring v0.2.8
+require golang.org/x/term v0.37.0
