@@ -105,8 +105,8 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    },opts.MonitorOnStart,discover,notice)
    if err!=nil{return false,err}
    if choice.Quit{return false,nil}
-   opts.MonitorOnStart=choice.MonitorEnabled
    if choice.ScopeKind!="" {
+    opts.MonitorOnStart=choice.MonitorEnabled
     next,err:=changeScope(opts,choice.ScopeKind,choice.ScopeValue)
     if err!=nil{notice=err.Error();continue}
     if next.Namespace==opts.Namespace&&next.Cluster==opts.Cluster&&loadErr==nil&&len(apps)>0{continue}
