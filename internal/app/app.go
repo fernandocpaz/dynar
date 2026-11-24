@@ -52,7 +52,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  all:=fs.Bool("all",false,"Open all services together without the workload picker")
  monitor:=fs.Bool("monitor",false,"Start Dynatrace log health and workload CPU/memory monitoring (M/F9)")
  noUpdateCheck:=fs.Bool("no-update-check",false,"Skip startup release check")
- if err:=fs.Parse(args);err!=nil{return 2}
+ if err:=fs.Parse(bareCommandDefaults(args));err!=nil{return 2}
  if fs.NArg()!=0{fmt.Fprintln(stderr,"unexpected positional arguments:",strings.Join(fs.Args()," "));return 2}
  ns:=*namespace
  if *nsLong!=""{
@@ -212,6 +212,7 @@ func sources(args []string,stdout,stderr io.Writer)int{
 func usage(w io.Writer){
  fmt.Fprint(w,`DynaR - Dynatrace namespace-wide log explorer
 
+  dynar                                      # apollo / tkgs-prod / monitor
   dynar source add prod --url https://TENANT.apps.dynatrace.com --default
   dynar -n apollo
   dynar -n apollo --once --since 24h
