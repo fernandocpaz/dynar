@@ -21,3 +21,20 @@ func TestSourceLabelShowsKubernetesCluster(t *testing.T){
   })
  }
 }
+
+func TestLoadingNamespaceMessageShowsCluster(t *testing.T) {
+ tests := []struct {
+  opts SharedOptions
+  want string
+ }{
+  {SharedOptions{Source: "prod", Namespace: "demo-shop", Cluster: "example-production"}, "DynaR: loading demo-shop namespace logs from example-production..."},
+  {SharedOptions{Source: "qa", Namespace: "demo-shop", Cluster: "example-testing"}, "DynaR: loading demo-shop namespace logs from example-testing..."},
+  {SharedOptions{Source: "prod", Namespace: "demo-shop"}, "DynaR: loading demo-shop namespace logs from all clusters..."},
+  {SharedOptions{Source: "prod", Namespace: "demo-shop", Cluster: "  "}, "DynaR: loading demo-shop namespace logs from all clusters..."},
+ }
+ for _, tc := range tests {
+  if got := loadingNamespaceMessage(tc.opts); got != tc.want {
+   t.Errorf("loadingNamespaceMessage(%+v) = %q, want %q", tc.opts, got, tc.want)
+  }
+ }
+}

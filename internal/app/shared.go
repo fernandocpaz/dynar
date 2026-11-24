@@ -43,6 +43,10 @@ func displaySourceCluster(opts SharedOptions)string{
  return "all clusters"
 }
 
+func loadingNamespaceMessage(opts SharedOptions) string {
+ return fmt.Sprintf("DynaR: loading %s namespace logs from %s...", opts.Namespace, displaySourceCluster(opts))
+}
+
 func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stderr io.Writer)(bool,error){
  if !opts.NoUpdateCheck && !isUpdateCheckDisabled() && StableBuild(){
   restart,quit,err:=promptDynaRUpdate(ctx)
@@ -56,7 +60,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
  timeFile:=configPath+".time-range"
  broker:=NewBroker(c,opts.Source,opts.Namespace,opts.Cluster,opts.Since,opts.Refresh,opts.BufferLines)
  broker.timeFile=timeFile
- fmt.Fprintf(stderr,"DynaR: loading %s namespace logs from %s...\n",opts.Namespace,opts.Source)
+ fmt.Fprintln(stderr, loadingNamespaceMessage(opts))
  if err:=broker.Bootstrap(ctx);err!=nil{return false,fmt.Errorf("load namespace: %w",err)}
  if err:=broker.Status();err!=nil{fmt.Fprintln(stderr,"WARNING: Dynatrace returned incomplete history:",err)}
  go broker.Run(ctx)
