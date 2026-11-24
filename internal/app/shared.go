@@ -28,6 +28,7 @@ type SharedOptions struct {
  Level string
  FilterFile string
  MetricsClient *dynatrace.Client
+ SpansClient *dynatrace.Client
  MonitorOnStart bool
 }
 
@@ -160,6 +161,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
     // displays only one service. F6 investigates the complete namespace.
     return broker.Trace(ctx,id,nil)
    },
+   Spans:spanCallback(opts.SpansClient),
    ErrorLogs:broker.ErrorLogs,
    LogDetails:broker.LogDetails,
   })
@@ -222,4 +224,9 @@ func initialQuery(opts SharedOptions)string{
   initial+="level:"+level
  }
  return initial
+}
+
+func spanCallback(client *dynatrace.Client)func(context.Context,string,time.Time)(logui.SpanResult,error){
+ if client==nil{return nil}
+ return client.QuerySpans
 }

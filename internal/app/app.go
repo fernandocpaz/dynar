@@ -107,12 +107,14 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  if follow && !*noUI && *output=="text" && interactiveTerminal(stdout) {
   metricClient,err:=dynatrace.NewMetricsClient(base,connection)
   if err!=nil{fmt.Fprintln(stderr,err);return 2}
+  spansClient,err:=dynatrace.NewSpansClient(base,connection)
+  if err!=nil{fmt.Fprintln(stderr,err);return 2}
   restart,err:=sharedViewer(ctx,collector,SharedOptions{
    Source:name,Namespace:ns,Cluster:*cluster,Service:*service,Pod:*podExact,
    Since:*since,Refresh:*refresh,BufferLines:*bufferLines,
    NoUpdateCheck:*noUpdateCheck,All:*all,Search:*search,Regex:*regex,
    SplitPanes:*splitPanes,ServiceExact:*serviceExact,Level:*level,FilterFile:*filterFile,
-   MetricsClient:metricClient,MonitorOnStart:*monitor,
+   MetricsClient:metricClient,SpansClient:spansClient,MonitorOnStart:*monitor,
   },stdout,stderr)
   if err!=nil{fmt.Fprintln(stderr,"DynaR:",err);return 1}
   if restart{return RestartExitCode}

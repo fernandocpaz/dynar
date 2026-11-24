@@ -21,6 +21,7 @@ type Event struct {
  Level string `json:"level"`
  Message string `json:"message"`
  TraceID string `json:"trace_id,omitempty"`
+ SpanID string `json:"span_id,omitempty"`
  RequestID string `json:"request_id,omitempty"`
  // These optional attributes come from enriched Grail log records; absent
  // attributes must never be interpreted as a successful HTTP request.
@@ -56,6 +57,7 @@ func FromRecord(rec map[string]any, source string)(Event,error){
   Level:strings.ToUpper(stringField(rec,"loglevel","severity","level")),
   Message:stringField(rec,"content","message","log"),
   TraceID:stringField(rec,"trace_id","trace.id"),
+  SpanID:stringField(rec,"span_id","span.id"),
   RequestID:stringField(rec,"request_id","request.id"),
   HTTPMethod:stringField(rec,"http.request.method","http.method","request_method"),
   HTTPPath:stringField(rec,"url.path","http.route","http.target","requestpath"),
@@ -68,7 +70,7 @@ func FromRecord(rec map[string]any, source string)(Event,error){
  if e.Message==""{e.Message="(empty message)"}
  native:=stringField(rec,"id","event.id")
  if native!=""{e.Identity=source+"/"+native}else{
-  hash:=sha256.Sum256([]byte(e.Timestamp.UTC().Format(time.RFC3339Nano)+"\x00"+source+"\x00"+e.Pod+"\x00"+e.Container+"\x00"+e.Message+"\x00"+e.TraceID))
+  hash:=sha256.Sum256([]byte(e.Timestamp.UTC().Format(time.RFC3339Nano)+"\x00"+source+"\x00"+e.Pod+"\x00"+e.Container+"\x00"+e.Message+"\x00"+e.TraceID+"\x00"+e.SpanID))
   e.Identity=hex.EncodeToString(hash[:])
  }
  return e,nil

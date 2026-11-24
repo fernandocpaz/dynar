@@ -88,7 +88,7 @@ func asLogUI(e logs.Event)logui.Event{
  s:=recordSource(e)
  return logui.Event{
   Workload:s.Workload,Pod:s.Pod,Container:s.Container,
-  Message:e.Message,Level:e.Level,TraceID:e.TraceID,
+  Message:e.Message,Level:e.Level,TraceID:e.TraceID,SpanID:e.SpanID,
   RequestID:e.RequestID,Timestamp:e.Timestamp,
   HTTPMethod:e.HTTPMethod,HTTPPath:e.HTTPPath,HTTPStatusCode:e.HTTPStatusCode,
   HTTPDuration:e.HTTPDuration,HasHTTPDuration:e.HasHTTPDuration,
