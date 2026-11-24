@@ -180,6 +180,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
   if recorder!=nil{recordingPath=recorder.Path;capture=recorder.Write}
   err=logui.Run(scopeCtx,logui.Config{
    RecordingPath:recordingPath,Capture:capture,
+   ExclusionFile:windowExclusionFile(configPath,opts,selected,selectedPods),
    Title:"DynaR | "+displaySourceCluster(opts)+" | "+opts.Namespace,
    Namespace:opts.Namespace,Provider:displaySourceCluster(opts),Target:target,
    Sources:list,RefreshInterval:opts.Refresh,BufferLines:opts.BufferLines,
