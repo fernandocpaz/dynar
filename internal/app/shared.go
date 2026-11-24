@@ -11,6 +11,7 @@ import (
  "time"
 
  "github.com/fernandocpaz/dynar/internal/update"
+ "github.com/fernandocpaz/dynar/internal/dynatrace"
  "github.com/fernandocpaz/tailg/pkg/logui"
 )
 
@@ -25,6 +26,8 @@ type SharedOptions struct {
  ServiceExact bool
  Level string
  FilterFile string
+ MetricsClient *dynatrace.Client
+ MonitorOnStart bool
 }
 
 func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stderr io.Writer)(bool,error){
@@ -58,7 +61,9 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    }
    if len(selected)==0{return false,fmt.Errorf("no matching workload for --service %q",opts.Service)}
   default:
-   choice,err:=logui.PickApps(apps,opts.Source,opts.Namespace)
+   choice,err:=logui.PickAppsWithMonitor(apps,opts.Source,opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
+    return broker.Monitor(ctx,opts.MetricsClient)
+   },opts.MonitorOnStart)
    if err!=nil{return false,err}
    if choice.Quit{return false,nil}
    if len(choice.Workloads)==0{continue}

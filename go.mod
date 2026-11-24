@@ -37,4 +37,4 @@ require (
 	golang.org/x/text v0.20.0 // indirect
 )
 
-require github.com/fernandocpaz/tailg v0.1.56
+require github.com/fernandocpaz/tailg v0.1.57

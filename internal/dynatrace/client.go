@@ -29,6 +29,7 @@ type Client struct {
  HTTP *http.Client
  Credentials Credentials
  OAuthURL string
+ OAuthScopes string // separate metrics client never expands log-only privileges
  mu sync.Mutex
  accessToken string
  expires time.Time
@@ -52,6 +53,14 @@ func NewClient(base string,credentials Credentials)(*Client,error){
  u,_:=url.Parse(base);u.Path="";u.RawPath=""
  return &Client{BaseURL:strings.TrimRight(u.String(),"/"),HTTP:&http.Client{Timeout:35*time.Second},Credentials:credentials,OAuthURL:oauthURL},nil
 }
+// NewMetricsClient keeps the log-only OAuth credential flow unchanged.
+// A separate short-lived token is requested only when the user enables M/F9.
+func NewMetricsClient(base string,credentials Credentials)(*Client,error){
+ client,err:=NewClient(base,credentials)
+ if err!=nil{return nil,err}
+ client.OAuthScopes="storage:buckets:read storage:metrics:read"
+ return client,nil
+}
 func(c *Client)bearer(ctx context.Context)(string,error){
  if c.Credentials.Token!="" {return c.Credentials.Token,nil}
  c.mu.Lock();defer c.mu.Unlock()
@@ -60,7 +69,9 @@ func(c *Client)bearer(ctx context.Context)(string,error){
  form.Set("grant_type","client_credentials")
  form.Set("client_id",c.Credentials.ClientID)
  form.Set("client_secret",c.Credentials.ClientSecret)
- form.Set("scope","storage:buckets:read storage:logs:read")
+ scopes:=c.OAuthScopes
+ if scopes==""{scopes="storage:buckets:read storage:logs:read"}
+ form.Set("scope",scopes)
  req,err:=http.NewRequestWithContext(ctx,http.MethodPost,c.OAuthURL,strings.NewReader(form.Encode()))
  if err!=nil{return "",err}
  req.Header.Set("Content-Type","application/x-www-form-urlencoded")
@@ -148,10 +159,16 @@ func DQL(namespace,cluster string,limit int)string{
  return filter
 }
 func(c *Client)Query(ctx context.Context,namespace,cluster string,start,end time.Time,limit int)(Result,error){
+ return c.QueryDQL(ctx,DQL(namespace,cluster,limit),start,end,limit)
+}
+// QueryDQL runs a caller-supplied DQL query with the same bounded execution
+// and polling semantics as the logs collector. Never interpolate user input
+// into DQL without quoting/escaping it first.
+func(c *Client)QueryDQL(ctx context.Context,query string,start,end time.Time,limit int)(Result,error){
  if !end.After(start){return Result{},errors.New("invalid query time window")}
  if limit<1{return Result{},errors.New("limit must be positive")}
  payload:=map[string]any{
-  "query":DQL(namespace,cluster,limit),
+  "query":query,
   "defaultTimeframeStart":start.UTC().Format(time.RFC3339Nano),
   "defaultTimeframeEnd":end.UTC().Format(time.RFC3339Nano),
   "maxResultRecords":limit,
