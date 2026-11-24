@@ -4,6 +4,21 @@
 
 ## Quick start
 
+## Default invocation
+
+Running `dynar` with no arguments is equivalent to:
+
+```bash
+dynar -n apollo --cluster tkgs-prod --monitor
+```
+
+This default applies **only when no arguments are supplied**. Explicit commands
+retain their existing behavior (for example, `dynar -n apollo --cluster tkgs-qa`,
+`dynar --help`, `dynar update`, and `dynar source list`).
+Configure a default Dynatrace source and credentials first; these CLI defaults
+do not create a Dynatrace connection automatically.
+
+
 Install Go 1.25 or later:
 
 ```bash
