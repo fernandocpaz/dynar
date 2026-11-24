@@ -267,3 +267,28 @@ Each pane currently makes an independent Grail request; very large selections
 increase Dynatrace query volume.
 
 The interactive log viewer omits the repeated pod-name column to maximize message space. Pod identities remain available in structured filters (`pod:`), diagnostics, and recorded log metadata.
+
+## Distributed span waterfall (F6)
+
+Highlight a log containing a trace ID and press **F6**. DynaR loads correlated
+logs and requests Grail spans on demand, within 30 minutes either side of the
+selected trace's retained log timestamp. Spans are queried by exact trace ID
+across accessible services and namespaces, without restricting to the current
+workload. The waterfall opens automatically when spans are returned.
+
+- **Tab** switches between spans and the correlated log timeline.
+- **Up/Down** and **Page Up/Down** navigate; **Space** expands/collapses children.
+- **Enter** shows span metadata, including HTTP, database and messaging fields
+  when captured. **L** shows logs with the selected span ID; **L** again in
+  the log view restores all trace logs. **R** refreshes; **Esc** returns.
+- Summary shows the observed time envelope, span/error counts and longest
+  observed operation. This is not a computed causal critical path. Missing
+  parents are shown separately; sampled/truncated data is marked incomplete.
+
+The PAT requires `storage:spans:read` and `storage:buckets:read` for span
+queries. OAuth uses a separate lazily requested spans token, so existing
+log-only credentials continue working. If access is denied or no spans are
+retained, DynaR stays on the correlated logs. The current span query is
+bounded to 5,000 records per trace; absence of results does not prove no
+spans exist outside the queried time window. No additional AI transmission
+or raw SQL statement retrieval is performed by this feature.
