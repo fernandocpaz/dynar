@@ -29,18 +29,24 @@ func selectedTimeEvent(e logs.Event,workloads,pods map[string]bool,from,to time.
 // For missing history it queries only the selected targets and exact interval.
 // Remote results are bounded by the existing collector's record/query budget,
 // then by the configured viewer buffer. No log data is written to disk.
-func(b *Broker)LoadTimeRange(ctx context.Context,client *dynatrace.Client,workloads,pods map[string]bool,from,to time.Time)(logui.TimeResult,error){
+func(b *Broker)LoadTimeRange(ctx context.Context,client *dynatrace.Client,workloads,pods map[string]bool,from,to time.Time,force bool)(logui.TimeResult,error){
  if !to.After(from){return logui.TimeResult{},fmt.Errorf("invalid time window")}
  b.mu.RLock()
  capacity:=b.store.Max
- cached:=b.cacheComplete&&b.lastError==nil&&!from.Before(b.cacheStart)&&!to.After(b.lastEnd)
- if cached{
-  events:=make([]logui.Event,0)
-  for _,e:=range b.store.Items{
-   if selectedTimeEvent(e,workloads,pods,from,to){events=append(events,asLogUI(e))}
+ var cached []logs.Event
+ queryFrom:=from
+ covered:=!force&&b.cacheComplete&&b.lastError==nil&&!from.Before(b.cacheStart)&&b.lastEnd.After(from)
+ if covered{
+  for _,e:=range b.store.Items{if selectedTimeEvent(e,workloads,pods,from,to){cached=append(cached,e)}}
+  if !to.After(b.lastEnd){
+   b.mu.RUnlock()
+   events:=make([]logui.Event,0,len(cached))
+   for _,e:=range cached{events=append(events,asLogUI(e))}
+   return logui.TimeResult{Events:events},nil
   }
-  b.mu.RUnlock()
-  return logui.TimeResult{Events:events},nil
+  // Reuse complete retained history; query just the missing tail plus the
+  // ordinary late-ingestion overlap. A manual reload bypasses this cache.
+  if overlap:=b.lastEnd.Add(-5*time.Minute);overlap.After(from){queryFrom=overlap}
  }
  b.mu.RUnlock()
  collector:=b.collector
@@ -50,9 +56,9 @@ func(b *Broker)LoadTimeRange(ctx context.Context,client *dynatrace.Client,worklo
    return client.QueryTargets(ctx,ns,cluster,start,end,limit,ws,ps)
   }
  }
- records,warnings,err:=collector.Load(ctx,b.source,b.namespace,b.cluster,from,to)
+ records,warnings,err:=collector.Load(ctx,b.source,b.namespace,b.cluster,queryFrom,to)
  if err!=nil{return logui.TimeResult{},err}
- filtered:=make([]logs.Event,0,len(records))
+ filtered:=append(make([]logs.Event,0,len(cached)+len(records)),cached...)
  for _,record:=range records{if selectedTimeEvent(record,workloads,pods,from,to){filtered=append(filtered,record)}}
  store:=logs.NewStore(capacity)
  unique:=store.Add(filtered)

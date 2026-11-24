@@ -55,6 +55,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
  if err=os.MkdirAll(filepath.Dir(configPath),0700);err!=nil{return false,fmt.Errorf("create timeframe directory: %w",err)}
  timeFile:=configPath+".time-range"
  broker:=NewBroker(c,opts.Source,opts.Namespace,opts.Cluster,opts.Since,opts.Refresh,opts.BufferLines)
+ broker.timeFile=timeFile
  fmt.Fprintf(stderr,"DynaR: loading %s namespace logs from %s...\n",opts.Namespace,opts.Source)
  if err:=broker.Bootstrap(ctx);err!=nil{return false,fmt.Errorf("load namespace: %w",err)}
  if err:=broker.Status();err!=nil{fmt.Fprintln(stderr,"WARNING: Dynatrace returned incomplete history:",err)}
@@ -154,8 +155,8 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    Color:true,ShowPod:false,UseConfiguredAI:true,TraceMarkers:true,CleanLogs:true,
    InitialFilter:initialQuery(opts),FilterFile:opts.FilterFile,
    TimeFile:timeFile,DefaultLookback:opts.Since,
-   TimeRecords:func(ctx context.Context,from,to time.Time)(logui.TimeResult,error){
-    return broker.LoadTimeRange(ctx,opts.TimeClient,selected,selectedPods,from,to)
+   TimeRecords:func(ctx context.Context,from,to time.Time,force bool)(logui.TimeResult,error){
+    return broker.LoadTimeRange(ctx,opts.TimeClient,selected,selectedPods,from,to,force)
    },
    RegexFilter:func()string{if opts.Regex{return opts.Search};return ""}(),
    Stream:broker.Subscribe,

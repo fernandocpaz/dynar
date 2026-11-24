@@ -25,6 +25,7 @@ type Broker struct{
  lastEnd time.Time
  cacheStart time.Time
  cacheComplete bool
+ timeFile string
  lastError error
  warnings []string
  overflow int64
@@ -171,6 +172,7 @@ func (b *Broker) Subscribe(ctx context.Context,source logui.Source,out chan<- lo
 func(b *Broker) LoadHistory(ctx context.Context)([]logs.Event,error){
  end:=time.Now().UTC()
  from:=end.Add(-b.history)
+ if selection,ok:=logui.ReadSharedTimeRange(b.timeFile);ok{from,end=selection.Bounds(end)}
  records,warnings,err:=b.collector.Load(ctx,b.source,b.namespace,b.cluster,from,end)
  if err!=nil{return nil,err}
  if len(warnings)>0{return nil,fmt.Errorf("historical query incomplete: %s",strings.Join(warnings,"; "))}

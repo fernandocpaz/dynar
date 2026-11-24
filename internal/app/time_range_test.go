@@ -21,7 +21,7 @@ func TestTimeRangeUsesCompleteCacheAndSelectsExactSource(t *testing.T){
   {Identity:"two",Timestamp:now.Add(-10*time.Minute),Service:"patient",Pod:"patient-1"},
   {Identity:"old",Timestamp:now.Add(-50*time.Minute),Service:"encounter",Pod:"encounter-1"},
  })
- result,err:=b.LoadTimeRange(context.Background(),nil,map[string]bool{"encounter":true},nil,now.Add(-30*time.Minute),now)
+ result,err:=b.LoadTimeRange(context.Background(),nil,map[string]bool{"encounter":true},nil,now.Add(-30*time.Minute),now,false)
  if err!=nil||len(result.Events)!=1||result.Events[0].Pod!="encounter-1"||queries!=0{t.Fatalf("cache/select failed: %+v %v, queries=%d",result,err,queries)}
 }
 func TestTimeRangeFetchesOutsideBufferWithExactBounds(t *testing.T){
@@ -36,6 +36,22 @@ func TestTimeRangeFetchesOutsideBufferWithExactBounds(t *testing.T){
    {"timestamp":from.Add(time.Minute).Format(time.RFC3339Nano),"k8s.workload.name":"patient","k8s.pod.name":"patient-1","content":"other"},
   }},nil
  }},"prod","apollo","tkgs-prod",time.Hour,time.Second,100)
- result,err:=b.LoadTimeRange(context.Background(),nil,nil,map[string]bool{"encounter-1":true},from,to)
+ result,err:=b.LoadTimeRange(context.Background(),nil,nil,map[string]bool{"encounter-1":true},from,to,false)
  if err!=nil||len(result.Events)!=1||queries!=1{t.Fatalf("historical query failed: %+v %v, queries=%d",result,err,queries)}
+}
+
+func TestTimeRangeQueriesOnlyMissingTailAndReloadBypassesCache(t *testing.T){
+ now:=time.Now().UTC()
+ from,to:=now.Add(-30*time.Minute),now.Add(2*time.Second)
+ var queriedFrom time.Time
+ b:=NewBroker(Collector{Limit:10,MaxQueries:4,Query:func(_ context.Context,_,_ string,start,end time.Time,_ int)(dynatrace.Result,error){
+  queriedFrom=start
+  return dynatrace.Result{},nil
+ }},"prod","apollo","tkgs-prod",time.Hour,time.Second,100)
+ b.cacheStart=now.Add(-time.Hour);b.lastEnd=now;b.cacheComplete=true
+ b.store.Add([]logs.Event{{Identity:"cached",Timestamp:now.Add(-10*time.Minute),Service:"encounter",Pod:"encounter-1"}})
+ r,err:=b.LoadTimeRange(context.Background(),nil,nil,nil,from,to,false)
+ if err!=nil||len(r.Events)!=1||!queriedFrom.Equal(now.Add(-5*time.Minute)){t.Fatalf("missing tail not reused: %+v %v %s",r,err,queriedFrom)}
+ _,err=b.LoadTimeRange(context.Background(),nil,nil,nil,from,to,true)
+ if err!=nil||!queriedFrom.Equal(from){t.Fatal("reload should fetch complete interval")}
 }
