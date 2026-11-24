@@ -194,3 +194,35 @@ This is an **observed HTTP-completion log chart**, not a Dynatrace APM metric
 or proof of all incoming traffic. If your application does not log HTTP
 completion records with method/path/status or duration, F9 will show no HTTP
 samples rather than manufacture request rates or latencies.
+
+## Dynatrace-backed workload health and resource monitoring
+
+```bash
+dynar -n apollo                 # open tailg workload picker; press M to monitor
+dynar -n apollo --monitor       # start monitoring immediately
+dynar -n apollo --cluster tkgs-prod --monitor
+```
+
+**M** toggles a 30-second Dynatrace scan. The shared tailg picker shows log
+health for each workload: gray for quiet, orange for warning events, red for
+errors, flashing red for >=5 recent errors and amber/unknown for incomplete
+logs. Monitoring never calls kubectl. **F9** opens the actual tailg resource
+charts (CPU, memory and log alerts). **R** refreshes the monitoring snapshot.
+
+CPU is deliberately shown as **% of the configured workload CPU limit** (not
+arbitrarily converted millicores); memory is shown as observed working set
+in MiB, optionally compared with the configured memory limit. When CPU limits
+are missing, CPU% is **—** rather than 0. No resource reading is invented
+when Dynatrace metrics are absent or a query fails.
+
+Permissions: API tokens require `storage:metrics:read` and
+`storage:buckets:read` for metrics; logs still require `storage:logs:read`.
+For OAuth, DynaR uses an independent metrics access token so a missing metrics
+permission does **not** prevent log-only operation. CPU/memory queries use
+Dynatrace's Grail `dt.kubernetes.container.*` metrics, grouped by namespace
+and workload with optional `--cluster` filtering. Monitoring data is scoped
+to the log workloads discovered by DynaR. Missing log coverage or a saturated
+local buffer cannot yield a healthy status.
+
+Charts are telemetry observations, not direct pod readiness probes and not
+proof of Kubernetes Deployment readiness. Monitor results may lag ingestion.

@@ -50,6 +50,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  serviceExact:=fs.Bool("service-exact",false,"Match exact workload name (used for split pane children)")
  filterFile:=fs.String("filter-file","","Shared live filter state file for split panes")
  all:=fs.Bool("all",false,"Open all services together without the workload picker")
+ monitor:=fs.Bool("monitor",false,"Start Dynatrace log health and workload CPU/memory monitoring (M/F9)")
  noUpdateCheck:=fs.Bool("no-update-check",false,"Skip startup release check")
  if err:=fs.Parse(args);err!=nil{return 2}
  if fs.NArg()!=0{fmt.Fprintln(stderr,"unexpected positional arguments:",strings.Join(fs.Args()," "));return 2}
@@ -82,16 +83,20 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
   base=config.Env("","URL")
  }
  if base==""{fmt.Fprintln(stderr,"no Dynatrace source configured. Run: dynar source add prod --url https://TENANT.apps.dynatrace.com --default");return 2}
- client,err:=dynatrace.NewClient(base,dynatrace.Credentials{Token:config.Env(name,"TOKEN"),ClientID:config.Env(name,"CLIENT_ID"),ClientSecret:config.Env(name,"CLIENT_SECRET")})
+ credentials:=dynatrace.Credentials{Token:config.Env(name,"TOKEN"),ClientID:config.Env(name,"CLIENT_ID"),ClientSecret:config.Env(name,"CLIENT_SECRET")}
+ client,err:=dynatrace.NewClient(base,credentials)
  if err!=nil{fmt.Fprintln(stderr,err);return 2}
  collector:=Collector{Query:client.Query,Limit:*limit,MaxQueries:*maxQueries}
  follow:=!*once&&!*noFollow
  if follow && !*noUI && *output=="text" && interactiveTerminal(stdout) {
+  metricClient,err:=dynatrace.NewMetricsClient(base,credentials)
+  if err!=nil{fmt.Fprintln(stderr,err);return 2}
   restart,err:=sharedViewer(ctx,collector,SharedOptions{
    Source:name,Namespace:ns,Cluster:*cluster,Service:*service,
    Since:*since,Refresh:*refresh,BufferLines:*bufferLines,
    NoUpdateCheck:*noUpdateCheck,All:*all,Search:*search,Regex:*regex,
    SplitPanes:*splitPanes,ServiceExact:*serviceExact,Level:*level,FilterFile:*filterFile,
+   MetricsClient:metricClient,MonitorOnStart:*monitor,
   },stdout,stderr)
   if err!=nil{fmt.Fprintln(stderr,"DynaR:",err);return 1}
   if restart{return RestartExitCode}
@@ -215,6 +220,7 @@ func usage(w io.Writer){
   dynar -n apollo --once --group
   dynar -n apollo --all
   dynar -n apollo --split-panes
+  dynar -n apollo --monitor
   dynar update --check
   dynar update
 
@@ -225,7 +231,7 @@ Tokens are read from environment variables, never saved in source configuration.
 Options: -n, --namespace, --source, --cluster, --since, --refresh,
          --once, --no-follow, --search, --regex, --level, --service,
          --output text|ndjson, --no-ui, --group (snapshots), --all,
-         --split-panes, --no-update-check,
+         --split-panes, --monitor, --no-update-check,
          --limit, --max-queries, --buffer-lines.
 `)
 }
