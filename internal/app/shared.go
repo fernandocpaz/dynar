@@ -100,9 +100,11 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
     cluster,namespace:=opts.Cluster,opts.Namespace
     discover=func(ctx context.Context,kind string)([]string,string,error){return catalog.list(ctx,kind,cluster,namespace)}
    }
+   var openResources logui.ResourceOpen
+   if opts.TimeClient!=nil{openResources=resourceBrowser(opts.TimeClient,opts.Cluster,opts.Namespace,timeFile)}
    choice,err:=logui.PickAppsWithScope(scopeCtx,apps,displaySourceCluster(opts),opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
     return currentBroker.Monitor(ctx,opts.MetricsClient)
-   },opts.MonitorOnStart,discover,notice)
+   },opts.MonitorOnStart,discover,notice,openResources)
    if err!=nil{return false,err}
    if choice.Quit{return false,nil}
    if choice.ScopeKind!="" {
