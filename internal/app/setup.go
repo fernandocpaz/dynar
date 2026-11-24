@@ -182,7 +182,7 @@ func configCommand(args []string,stdout,stderr io.Writer)int{
   fmt.Fprintln(stdout,"Run: dynar config edit (secret values are never displayed).")
   return 0
  }
- if !interactiveSetup(stderr){fmt.Fprintln(stderr,"Editor requires a terminal: dynar config edit");return 2}
+ if !interactiveSetup(stdout)||!interactiveSetup(stderr){fmt.Fprintln(stderr,"Editor requires an interactive terminal: dynar config edit");return 2}
  w:=newWizard(stderr)
  if _,_,_,err:=w.configure(cfg,"",true);err!=nil{
   fmt.Fprintln(stderr,"Setup not completed:",err);return 1
@@ -200,7 +200,8 @@ func requireConfiguration(cfg config.Config,requested string,console bool,stderr
  if url==""{url=config.Env(name,"URL")}
  auth:=credentials.Resolve(name,credentials.NativeStore{})
  invalidURL:=url!=""&&dynatrace.ValidateURL(url)!=nil
- missing:=name==""||url==""||invalidURL||!auth.Ready()||console&&requested==""&&cfg.Default==""
+ missingPreferences:=cfg.Namespace==""||cfg.Cluster==""||cfg.Monitor==nil
+ missing:=name==""||url==""||invalidURL||!auth.Ready()||console&&requested==""&&(cfg.Default==""||missingPreferences)
  if !missing{return cfg,name,auth,nil}
  if !console {
   return cfg,"",credentials.Auth{},errors.New("Dynatrace source, URL or credentials missing. Run 'dynar setup' in a terminal, or configure DYNAR_URL and DYNAR_TOKEN (or OAuth variables)")

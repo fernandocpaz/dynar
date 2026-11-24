@@ -82,7 +82,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  }
  if ns==""{ns=cfg.EffectiveNamespace()}
  if len(ns)>253||strings.ContainsAny(ns,"\r\n\x00"){fmt.Fprintln(stderr,"invalid namespace");return 2}
- cfg,name,auth,err:=requireConfiguration(cfg,*source,interactiveSetup(stderr),stderr)
+ cfg,name,auth,err:=requireConfiguration(cfg,*source,interactiveSetup(stdout)&&interactiveSetup(stderr),stderr)
  if err!=nil{fmt.Fprintln(stderr,err);return 2}
  // An initial setup may have changed the preferred defaults. Apply those
  // settings immediately to the very first no-argument launch.
