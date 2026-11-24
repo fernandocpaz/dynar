@@ -5,9 +5,9 @@ import (
 )
 func TestMetricsDQLIsNamespaceScopedAndUsesRealMetrics(t *testing.T){
  q:=MetricsDQL(`apollo" | limit 1`,"tkgs-prod",500)
- if !strings.Contains(q,`k8s.namespace.name == "apollo" | limit 1"`){t.Fatalf("unescaped namespace: %s",q)}
+ if !strings.Contains(q,`k8s.namespace.name == "apollo\" | limit 1"`){t.Fatalf("unescaped namespace: %s",q)}
  for _,part:=range []string{"dt.kubernetes.container.cpu_usage","dt.kubernetes.container.memory_working_set",
-   "k8s.cluster.name == "tkgs-prod"","limit 500","by: {k8s.namespace.name, k8s.workload.name}"}{
+   `k8s.cluster.name == "tkgs-prod"`,`limit 500`,`by: {k8s.namespace.name, k8s.workload.name}`}{
   if !strings.Contains(q,part){t.Fatalf("missing %s",part)}
  }
 }
