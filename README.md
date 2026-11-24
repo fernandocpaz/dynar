@@ -2,6 +2,21 @@
 
 **DynaR** is a standalone, read-only Go CLI for browsing all Dynatrace Grail logs in a Kubernetes namespace. **Its interactive picker and log viewer now use tailg's actual shared engine**, not a parallel imitation. The DynaR binary and releases remain independent. It is separate from [tailg](https://github.com/fernandocpaz/tailg): it does **not** require `kubectl` or a Kubernetes connection.
 
+## First installation (Windows)
+
+Download **[DynaR-Setup.exe](https://github.com/fernandocpaz/dynar/releases/latest/download/DynaR-Setup.exe)** from the latest GitHub release and run it. The offline setup selects the native Windows x64 or ARM64 binary, installs into `%LOCALAPPDATA%\Programs\DynaR`, adds it to your user PATH, and creates a Start menu shortcut. Administrator rights, Go, tailg, and kubectl are not required.
+
+Open a new terminal and run:
+
+```powershell
+dynar version
+dynar
+```
+
+DynaR's own first-run setup prompts for your Dynatrace URL and credentials if they are missing. The installer does not request, transmit, or remove these settings. Subsequent releases are installed with `dynar update`; you do not need to download Setup again. Uninstall through Windows Installed apps; configuration and credentials are preserved. If another copy of DynaR is already on PATH, use `Get-Command dynar -All` to identify it before installing. The setup is not currently code signed, so Windows may display an unknown-publisher or SmartScreen warning; consult your organization's software policy.
+
+For Linux and macOS, the [release assets](https://github.com/fernandocpaz/dynar/releases/latest) include portable native binaries. The Go installation method below is optional for developers.
+
 ## Default invocation
 
 Running `dynar` with no arguments is equivalent to:

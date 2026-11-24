@@ -21,3 +21,31 @@ jobs:
       - run: go test ./...
       - run: go vet ./...
       - run: go build -o dynar ./cmd/dynar
+
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build native payloads
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          go mod tidy
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve Go dependencies' }
+          $env:GOOS = 'windows'
+          $env:CGO_ENABLED = '0'
+          New-Item -ItemType Directory -Force dist | Out-Null
+          foreach ($arch in @('amd64', 'arm64')) {
+            $env:GOARCH = $arch
+            go build -trimpath -ldflags="-s -w -X github.com/fernandocpaz/dynar/internal/app.Version=v0.0.0" -o "dist/dynar_v0.0.0_windows_$arch.exe" ./cmd/dynar
+            if ($LASTEXITCODE -ne 0) { throw "Unable to build $arch" }
+          }
+      - name: Build and smoke test setup
+        shell: pwsh
+        run: |
+          ./installer/windows/build.ps1 -AssetDir ./dist -OutputDir ./setup-dist -ReleaseTag v0.0.0
+          ./installer/windows/smoke.ps1 -SetupPath ./setup-dist/DynaR-Setup.exe -ReleaseTag v0.0.0
