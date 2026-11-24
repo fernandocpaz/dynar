@@ -2,8 +2,6 @@
 
 **DynaR** is a standalone, read-only Go CLI for browsing all Dynatrace Grail logs in a Kubernetes namespace. **Its interactive picker and log viewer now use tailg's actual shared engine**, not a parallel imitation. The DynaR binary and releases remain independent. It is separate from [tailg](https://github.com/fernandocpaz/tailg): it does **not** require `kubectl` or a Kubernetes connection.
 
-## Quick start
-
 ## Default invocation
 
 Running `dynar` with no arguments is equivalent to:
