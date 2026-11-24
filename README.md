@@ -180,3 +180,17 @@ and Esc continues without updating. The network update check is performed only
 for stable interactive builds when `--no-update-check` is not specified.
 DynaR continues to use **its own** GitHub release, SHA-256 verification, and
 binary replacement logic; it never downloads or installs tailg as an update.
+
+## F9 charts from Dynatrace HTTP log attributes
+
+DynaR now forwards Grail HTTP method, route, response code and duration fields
+into tailg's F9 rolling analytics when those fields are present on *individual
+log records*. DQL explicitly requests standard attributes such as
+`http.request.method`, `http.response.status_code`, `url.path`,
+`duration` and `duration_ms`. Durations are included only when the returned
+value includes a unit or the source field explicitly identifies milliseconds.
+
+This is an **observed HTTP-completion log chart**, not a Dynatrace APM metric
+or proof of all incoming traffic. If your application does not log HTTP
+completion records with method/path/status or duration, F9 will show no HTTP
+samples rather than manufacture request rates or latencies.

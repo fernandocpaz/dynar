@@ -90,6 +90,8 @@ func asLogUI(e logs.Event)logui.Event{
   Workload:s.Workload,Pod:s.Pod,Container:s.Container,
   Message:e.Message,Level:e.Level,TraceID:e.TraceID,
   RequestID:e.RequestID,Timestamp:e.Timestamp,
+  HTTPMethod:e.HTTPMethod,HTTPPath:e.HTTPPath,HTTPStatusCode:e.HTTPStatusCode,
+  HTTPDuration:e.HTTPDuration,HasHTTPDuration:e.HasHTTPDuration,
  }
 }
 func (b *Broker) Inventory(selected map[string]bool)[]logui.Source{

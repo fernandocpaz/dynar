@@ -73,3 +73,19 @@ func TestLogDetailsRestoresRetainedStackFrames(t *testing.T){
  got,err:=broker.LogDetails(context.Background(),selected)
  if err!=nil || len(got)!=2{t.Fatalf("complete exception block missing: %v %v",got,err)}
 }
+
+func TestGrailHTTPAttributesForwardedToSharedF9Engine(t *testing.T){
+ at:=time.Now().UTC()
+ ev,err:=logs.FromRecord(map[string]any{
+  "timestamp":at.Format(time.RFC3339Nano),
+  "content":"request completed","k8s.deployment.name":"encounter",
+  "http.request.method":"POST","url.path":"/encounters/7",
+  "http.response.status_code":float64(500),"duration_ms":float64(400),
+ },"prod")
+ if err!=nil{t.Fatal(err)}
+ ui:=asLogUI(ev)
+ if ui.HTTPMethod!="POST"||ui.HTTPPath!="/encounters/7"||ui.HTTPStatusCode!=500||
+  !ui.HasHTTPDuration||ui.HTTPDuration!=400*time.Millisecond{
+  t.Fatalf("F9 metadata lost on provider bridge: %+v",ui)
+ }
+}
