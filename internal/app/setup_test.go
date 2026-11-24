@@ -11,7 +11,6 @@ import (
  "testing"
 
  "github.com/fernandocpaz/dynar/internal/config"
- "github.com/fernandocpaz/dynar/internal/credentials"
 )
 type wizardVault struct{
  values map[string]string
