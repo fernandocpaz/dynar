@@ -59,8 +59,7 @@ func (c Config) Save() error {
  tmp,err:=os.CreateTemp(dir,".config-*");if err!=nil{return err}
  defer os.Remove(tmp.Name())
  if err=tmp.Chmod(0600);err!=nil{tmp.Close();return err}
- if _,err=tmp.Write(append(b,'
-'));err!=nil{tmp.Close();return err}
+ if _,err=tmp.Write(append(b,'\n'));err!=nil{tmp.Close();return err}
  if err=tmp.Close();err!=nil{return err}
  return os.Rename(tmp.Name(),path)
 }
