@@ -248,3 +248,20 @@ filter is selected, the label reads **all clusters** rather than implying a
 specific environment. This is display-only: `--source prod` still selects the
 configured Dynatrace connection and its credentials, while `--cluster tkgs-prod`
 scopes the Grail query. No stored source settings are changed.
+
+## Multiple workloads and exact pod split panes
+
+On **Windows Terminal**, selecting two or more workloads in the tailg-style
+picker using **Space**, then pressing **Enter**, automatically opens a
+separate live-log pane for each selected workload, exactly like tailg.
+Press **P** in the picker to select exact Grail-discovered pods; mark two or
+more with Space and press Enter to open one pane per **pod**, not a combined
+log stream. The panes retain the same namespace/cluster, source profile,
+lookback and synchronized F1/text filters. Each child uses an exact workload
+or pod filter, so logs from unrelated pods cannot appear in its pane.
+
+On Linux/WSL/macOS, selections still use a combined timeline (matching tailg's
+Windows-only auto-split behavior). **F** live recording remains single-view;
+`--split-panes` is still supported as an explicit Windows Terminal command.
+Each pane currently makes an independent Grail request; very large selections
+increase Dynatrace query volume.

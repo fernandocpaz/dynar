@@ -51,6 +51,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  group:=fs.Bool("group",false,"Group snapshot text output by service (with --once)")
  splitPanes:=fs.Bool("split-panes",false,"Open Windows Terminal panes for selected workloads")
  serviceExact:=fs.Bool("service-exact",false,"Match exact workload name (used for split pane children)")
+ podExact:=fs.String("pod-exact","","Match an exact pod name (used for split-pane children)")
  filterFile:=fs.String("filter-file","","Shared live filter state file for split panes")
  all:=fs.Bool("all",false,"Open all services together without the workload picker")
  monitor:=fs.Bool("monitor",false,"Start Dynatrace log health and workload CPU/memory monitoring (M/F9)")
@@ -67,6 +68,8 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
  if *limit<1||*limit>100000||*maxQueries<1||*maxQueries>256||*bufferLines<1{fmt.Fprintln(stderr,"invalid --limit, --max-queries, or --buffer-lines");return 2}
  if *output!="text"&&*output!="ndjson"{fmt.Fprintln(stderr,"--output must be text or ndjson");return 2}
  if *group && (!(*once||*noFollow) || *output!="text"){fmt.Fprintln(stderr,"--group requires --once and --output text");return 2}
+ if *podExact!=""&&(*once||*noFollow||*noUI||*output!="text"){fmt.Fprintln(stderr,"--pod-exact requires interactive live text mode");return 2}
+ if *podExact!=""&&*service!=""{fmt.Fprintln(stderr,"--pod-exact and --service cannot be combined");return 2}
  if *splitPanes && (*once||*noFollow||*noUI||*output!="text"){fmt.Fprintln(stderr,"--split-panes requires interactive live text mode");return 2}
  if len(ns)>253||strings.ContainsAny(ns,"\r\n\x00"){fmt.Fprintln(stderr,"invalid namespace");return 2}
  matcher,err:=makeMatcher(*search,*regex,*level,*service)
@@ -105,7 +108,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
   metricClient,err:=dynatrace.NewMetricsClient(base,connection)
   if err!=nil{fmt.Fprintln(stderr,err);return 2}
   restart,err:=sharedViewer(ctx,collector,SharedOptions{
-   Source:name,Namespace:ns,Cluster:*cluster,Service:*service,
+   Source:name,Namespace:ns,Cluster:*cluster,Service:*service,Pod:*podExact,
    Since:*since,Refresh:*refresh,BufferLines:*bufferLines,
    NoUpdateCheck:*noUpdateCheck,All:*all,Search:*search,Regex:*regex,
    SplitPanes:*splitPanes,ServiceExact:*serviceExact,Level:*level,FilterFile:*filterFile,
