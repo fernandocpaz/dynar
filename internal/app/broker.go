@@ -23,6 +23,8 @@ type Broker struct{
  store *logs.Store
  subs map[string]map[chan logs.Event]struct{}
  lastEnd time.Time
+ cacheStart time.Time
+ cacheComplete bool
  lastError error
  warnings []string
  overflow int64
@@ -42,6 +44,8 @@ func(b *Broker) Bootstrap(ctx context.Context)error{
  b.store.Add(events)
  b.warnings=warnings
  b.lastEnd=end
+ b.cacheStart=end.Add(-b.history)
+ b.cacheComplete=len(warnings)==0&&len(b.store.Items)<b.store.Max
  return nil
 }
 func (b *Broker) Run(ctx context.Context){
@@ -63,10 +67,12 @@ func (b *Broker) Run(ctx context.Context){
    }else{
     b.lastError=nil
     b.warnings=warnings
+    if len(warnings)>0{b.cacheComplete=false}
     // Never move the cursor past a failed query. Late ingestion is still
     // retrievable from the overlapping polling window.
     b.lastEnd=end
     newEvents:=b.store.Add(events)
+    if len(b.store.Items)>=b.store.Max{b.cacheComplete=false}
     for _,ev:=range newEvents{
      for subscriber:=range b.subs[recordSource(ev).Key()]{
       select {case subscriber<-ev:default:b.overflow++}

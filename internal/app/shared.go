@@ -12,6 +12,7 @@ import (
  "time"
 
  "github.com/fernandocpaz/dynar/internal/update"
+ "github.com/fernandocpaz/dynar/internal/config"
  "github.com/fernandocpaz/dynar/internal/dynatrace"
  "github.com/fernandocpaz/tailg/pkg/logui"
 )
@@ -29,6 +30,7 @@ type SharedOptions struct {
  FilterFile string
  MetricsClient *dynatrace.Client
  SpansClient *dynatrace.Client
+ TimeClient *dynatrace.Client
  MonitorOnStart bool
 }
 
@@ -48,6 +50,10 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
   if quit{return false,nil}
   if restart{return true,nil}
  }
+ configPath,err:=config.Path()
+ if err!=nil{return false,fmt.Errorf("resolve shared timeframe path: %w",err)}
+ if err=os.MkdirAll(filepath.Dir(configPath),0700);err!=nil{return false,fmt.Errorf("create timeframe directory: %w",err)}
+ timeFile:=configPath+".time-range"
  broker:=NewBroker(c,opts.Source,opts.Namespace,opts.Cluster,opts.Since,opts.Refresh,opts.BufferLines)
  fmt.Fprintf(stderr,"DynaR: loading %s namespace logs from %s...\n",opts.Namespace,opts.Source)
  if err:=broker.Bootstrap(ctx);err!=nil{return false,fmt.Errorf("load namespace: %w",err)}
@@ -55,7 +61,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
  go broker.Run(ctx)
  for {
   apps:=broker.Apps()
-  if len(apps)==0{
+  if len(apps)==0&&!opts.All&&opts.Pod==""&&!(opts.Service!=""&&opts.ServiceExact){
    return false,fmt.Errorf("no accessible logs in namespace %q during %s; check ingestion, scope, and --since",opts.Namespace,opts.Since)
   }
   var selected map[string]bool
@@ -74,7 +80,9 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
     if opts.ServiceExact{match=strings.EqualFold(app.Name,opts.Service)}
     if match{selected[app.Name]=true}
    }
-   if len(selected)==0{return false,fmt.Errorf("no matching workload for --service %q",opts.Service)}
+   if len(selected)==0{
+    if opts.ServiceExact{selected[opts.Service]=true}else{return false,fmt.Errorf("no matching workload for --service %q",opts.Service)}
+   }
   default:
    picked=true
    choice,err:=logui.PickAppsWithMonitor(apps,displaySourceCluster(opts),opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
@@ -113,7 +121,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    return false,nil
   }
   list:=filterInventoryPods(broker.Inventory(selected),selectedPods)
-  if len(list)==0{fmt.Fprintln(stderr,"No streams available for selected workloads");continue}
+  if len(list)==0&&opts.Pod==""&&!opts.All&&!(opts.Service!=""&&opts.ServiceExact){fmt.Fprintln(stderr,"No streams available for selected workloads");continue}
   target:="all"
   if len(selectedPods)>0{
    names:=make([]string,0,len(selectedPods))
@@ -137,7 +145,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
   recordingPath:=""
   var capture func([]logui.Event)error
   if recorder!=nil{recordingPath=recorder.Path;capture=recorder.Write}
-  err:=logui.Run(ctx,logui.Config{
+  err=logui.Run(ctx,logui.Config{
    RecordingPath:recordingPath,Capture:capture,
    Title:"DynaR | "+displaySourceCluster(opts)+" | "+opts.Namespace,
    Namespace:opts.Namespace,Provider:displaySourceCluster(opts),Target:target,
@@ -145,6 +153,10 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    // Pod names remain in source metadata, not the rendered log prefix.
    Color:true,ShowPod:false,UseConfiguredAI:true,TraceMarkers:true,CleanLogs:true,
    InitialFilter:initialQuery(opts),FilterFile:opts.FilterFile,
+   TimeFile:timeFile,DefaultLookback:opts.Since,
+   TimeRecords:func(ctx context.Context,from,to time.Time)(logui.TimeResult,error){
+    return broker.LoadTimeRange(ctx,opts.TimeClient,selected,selectedPods,from,to)
+   },
    RegexFilter:func()string{if opts.Regex{return opts.Search};return ""}(),
    Stream:broker.Subscribe,
    Inventory:func(ctx context.Context)([]logui.Source,error){

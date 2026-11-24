@@ -114,7 +114,7 @@ func Run(ctx context.Context,args []string,stdout,stderr io.Writer)int{
    Since:*since,Refresh:*refresh,BufferLines:*bufferLines,
    NoUpdateCheck:*noUpdateCheck,All:*all,Search:*search,Regex:*regex,
    SplitPanes:*splitPanes,ServiceExact:*serviceExact,Level:*level,FilterFile:*filterFile,
-   MetricsClient:metricClient,SpansClient:spansClient,MonitorOnStart:*monitor,
+   MetricsClient:metricClient,SpansClient:spansClient,TimeClient:client,MonitorOnStart:*monitor,
   },stdout,stderr)
   if err!=nil{fmt.Fprintln(stderr,"DynaR:",err);return 1}
   if restart{return RestartExitCode}
