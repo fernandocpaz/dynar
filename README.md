@@ -265,3 +265,5 @@ Windows-only auto-split behavior). **F** live recording remains single-view;
 `--split-panes` is still supported as an explicit Windows Terminal command.
 Each pane currently makes an independent Grail request; very large selections
 increase Dynatrace query volume.
+
+The interactive log viewer omits the repeated pod-name column to maximize message space. Pod identities remain available in structured filters (`pod:`), diagnostics, and recorded log metadata.
