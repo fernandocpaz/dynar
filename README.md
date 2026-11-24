@@ -327,3 +327,15 @@ known slow/failed HTTP requests stay visible. **F11** toggles clean/raw display
 in the current viewer. Explicit searches bypass this suppression, and retained
 raw logs, recordings, trace views and analytics remain unaffected. This is a
 local display filter, not a reduction of Dynatrace ingestion/query volume.
+
+## Global time filter (F12)
+
+Press **F12** in any interactive log viewer. All DynaR log windows using the same user configuration automatically adopt the same timeframe, including separately opened Windows Terminal panes. The range is persisted independently of text filters and credentials; selecting **L** in the time menu restores the rolling default (`--since`, normally 30 minutes).
+
+- **1–9**: rolling last 5m, 15m, 30m, 1h, 2h, 6h, 12h, 24h, or 7d. The selected window continues moving as live events arrive.
+- **C**: exact local From/To dates (YYYY-MM-DD HH:MM[:SS]) or RFC3339 timestamps with offsets. Tab switches fields. Enter applies.
+- **F**: freeze current interval; **A**: center on the selected log (±5 minutes, clamped to now). **T/Y**: today so far / yesterday.
+- **Left/Right**: move by one interval; **+/-**: zoom in/out; **R**: reload; **L**: live default. Alt+Left/Right shifts directly from the main log view.
+- The time bar shows the current range, live/fixed state, loading and incomplete-result notices. Exact intervals are bounded to 31 days per request and by the existing query and buffer limits. Narrow the range if it is incomplete.
+
+Time settings synchronize every 250 ms. A change cancels superseded local requests; no request is made for uncommitted date edits. Fixed intervals reuse complete contained snapshots and isolate historical display from incoming live records. Text search after a committed time change runs against the loaded interval instead of making repeated Grail calls; F1 toggles context vs matches. Range fetches reuse proven broker-cache coverage and query only missing recent time plus the late-ingestion overlap when possible. Otherwise they query only selected workload/pod targets and the requested timeframe. Reload bypasses the cache in all windows. Each Windows pane is still a separate process: it runs its own targeted query when needed, and existing live polling continues. No log data is shared on disk. The rolling display ages out old rows every five seconds. Recordings and live diagnostics continue receiving live events; correlated log, error, and detail history queries use the selected timeframe. Distributed span retrieval still uses its own trace-centered window, and live analytics retain their normal rolling semantics.
