@@ -30,6 +30,15 @@ type SharedOptions struct {
  MonitorOnStart bool
 }
 
+// displaySourceCluster is UI-only: tailg labels the external-provider value
+// "Source". In DynaR, that label identifies the selected Kubernetes cluster.
+// The configured Dynatrace source profile still controls URL, credentials,
+// Grail queries and recording metadata independently of this display text.
+func displaySourceCluster(opts SharedOptions)string{
+ if value:=strings.TrimSpace(opts.Cluster);value!=""{return value}
+ return "all clusters"
+}
+
 func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stderr io.Writer)(bool,error){
  if !opts.NoUpdateCheck && !isUpdateCheckDisabled() && StableBuild(){
   restart,quit,err:=promptDynaRUpdate(ctx)
@@ -61,7 +70,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    }
    if len(selected)==0{return false,fmt.Errorf("no matching workload for --service %q",opts.Service)}
   default:
-   choice,err:=logui.PickAppsWithMonitor(apps,opts.Source,opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
+   choice,err:=logui.PickAppsWithMonitor(apps,displaySourceCluster(opts),opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
     return broker.Monitor(ctx,opts.MetricsClient)
    },opts.MonitorOnStart)
    if err!=nil{return false,err}
@@ -108,8 +117,8 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
   if recorder!=nil{recordingPath=recorder.Path;capture=recorder.Write}
   err:=logui.Run(ctx,logui.Config{
    RecordingPath:recordingPath,Capture:capture,
-   Title:"DynaR | "+opts.Source+" | "+opts.Namespace,
-   Namespace:opts.Namespace,Provider:opts.Source,Target:target,
+   Title:"DynaR | "+displaySourceCluster(opts)+" | "+opts.Namespace,
+   Namespace:opts.Namespace,Provider:displaySourceCluster(opts),Target:target,
    Sources:list,RefreshInterval:opts.Refresh,BufferLines:opts.BufferLines,
    Color:true,ShowPod:true,UseConfiguredAI:true,
    InitialFilter:initialQuery(opts),FilterFile:opts.FilterFile,

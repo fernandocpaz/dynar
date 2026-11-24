@@ -239,3 +239,12 @@ local buffer cannot yield a healthy status.
 
 Charts are telemetry observations, not direct pod readiness probes and not
 proof of Kubernetes Deployment readiness. Monitor results may lag ingestion.
+
+## Source label in terminal UI
+
+The **Source** label in the tailg-style workload picker and log viewer shows the
+selected Kubernetes cluster, such as `tkgs-prod` or `tkgs-qa`. If no cluster
+filter is selected, the label reads **all clusters** rather than implying a
+specific environment. This is display-only: `--source prod` still selects the
+configured Dynatrace connection and its credentials, while `--cluster tkgs-prod`
+scopes the Grail query. No stored source settings are changed.
