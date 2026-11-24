@@ -6,6 +6,8 @@ import (
  "encoding/json"
  "fmt"
  "sort"
+ "strconv"
+ "math"
  "strings"
  "time"
 )
@@ -20,6 +22,13 @@ type Event struct {
  Message string `json:"message"`
  TraceID string `json:"trace_id,omitempty"`
  RequestID string `json:"request_id,omitempty"`
+ // These optional attributes come from enriched Grail log records; absent
+ // attributes must never be interpreted as a successful HTTP request.
+ HTTPMethod string `json:"http_method,omitempty"`
+ HTTPPath string `json:"http_path,omitempty"`
+ HTTPStatusCode int `json:"http_status_code,omitempty"`
+ HTTPDuration time.Duration `json:"-"`
+ HasHTTPDuration bool `json:"-"`
  Identity string `json:"-"`
 }
 func stringField(rec map[string]any, keys ...string) string {
@@ -48,7 +57,11 @@ func FromRecord(rec map[string]any, source string)(Event,error){
   Message:stringField(rec,"content","message","log"),
   TraceID:stringField(rec,"trace_id","trace.id"),
   RequestID:stringField(rec,"request_id","request.id"),
+  HTTPMethod:stringField(rec,"http.request.method","http.method","request_method"),
+  HTTPPath:stringField(rec,"url.path","http.route","http.target","requestpath"),
+  HTTPStatusCode:parseHTTPStatus(rec),
  }
+ e.HTTPDuration,e.HasHTTPDuration=parseHTTPDuration(rec)
  if e.Service==""{e.Service=WorkloadFromPod(e.Pod)}
  if e.Service==""{e.Service="unknown"}
  if e.Level==""{e.Level=GuessLevel(e.Message)}
@@ -60,6 +73,50 @@ func FromRecord(rec map[string]any, source string)(Event,error){
  }
  return e,nil
 }
+
+// parseHTTPStatus accepts only explicit HTTP status attributes and valid HTTP
+// response codes. A generic log "status" field is not necessarily HTTP.
+func parseHTTPStatus(record map[string]any)int{
+ value:=stringField(record,"http.response.status_code","http.status_code")
+ n,err:=strconv.Atoi(value)
+ if err!=nil||n<100||n>599{return 0}
+ return n
+}
+func parseHTTPDuration(record map[string]any)(time.Duration,bool){
+ // Untyped numeric "duration" values are ambiguous; do not infer units.
+ // Prefer strings with units, or fields explicitly named in milliseconds.
+ keys:=[]string{"duration","http.server.request.duration","http.duration_ms","duration_ms","elapsed_ms"}
+ for _,key:=range keys{
+  raw,ok:=record[key]
+  if !ok||raw==nil{continue}
+  if value,ok:=raw.(string);ok{
+   text:=strings.ReplaceAll(strings.TrimSpace(value)," ","")
+   if d,err:=time.ParseDuration(text);err==nil&&d>=0{return d,true}
+  }
+  // Numbers in fields ending _ms have explicit millisecond units.
+  if !strings.HasSuffix(key,"_ms"){continue}
+  var n float64
+  switch v:=raw.(type){
+  case float64:n=v
+  case float32:n=float64(v)
+  case int:n=float64(v)
+  case int64:n=float64(v)
+  case json.Number:
+   number,err:=v.Float64()
+   if err!=nil{continue}
+   n=number
+  case string:
+   number,err:=strconv.ParseFloat(strings.TrimSpace(v),64)
+   if err!=nil{continue}
+   n=number
+  default:continue
+  }
+  if math.IsNaN(n)||math.IsInf(n,0)||n<0||n>float64(1<<63-1)/float64(time.Millisecond){continue}
+  return time.Duration(n*float64(time.Millisecond)),true
+ }
+ return 0,false
+}
+
 type Store struct {
  Max int
  SeenMax int // bounded replay identity budget, independent from the visible ring

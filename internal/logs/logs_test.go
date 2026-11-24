@@ -32,3 +32,35 @@ func TestReplayIdentitiesSurviveVisibleLogEviction(t *testing.T){
     store.Add([]Event{{Identity:"four",Timestamp:now.Add(3*time.Second)}})
     if len(store.seen)>2{t.Fatalf("identity memory budget exceeded: %d",len(store.seen))}
 }
+
+func TestFromRecordHTTPAttributesAreUnitSafe(t *testing.T){
+  base:=map[string]any{
+   "timestamp":"2026-11-23T15:00:00Z",
+   "content":"completed request",
+   "http.request.method":"GET",
+   "url.path":"/patients/123",
+   "http.response.status_code":float64(503),
+   "duration_ms":float64(420),
+  }
+  event,err:=FromRecord(base,"prod")
+  if err!=nil{t.Fatal(err)}
+  if event.HTTPMethod!="GET"||event.HTTPPath!="/patients/123"||event.HTTPStatusCode!=503||
+    !event.HasHTTPDuration||event.HTTPDuration!=420*time.Millisecond{
+   t.Fatalf("enriched HTTP data lost: %+v",event)
+  }
+  base["duration_ms"]=nil
+  base["duration"]=float64(1234) // numeric without unit: unknowable
+  event,err=FromRecord(base,"prod")
+  if err!=nil{t.Fatal(err)}
+  if event.HasHTTPDuration{t.Fatalf("invented units for raw duration: %+v",event)}
+  base["duration"]="250 ms"
+  event,err=FromRecord(base,"prod")
+  if err!=nil||!event.HasHTTPDuration||event.HTTPDuration!=250*time.Millisecond{
+   t.Fatalf("duration string parsing: %+v, %v",event,err)
+  }
+}
+func TestInvalidHTTPStatusNeverBecomesMetric(t *testing.T){
+ event,err:=FromRecord(map[string]any{"timestamp":"2026-11-23T15:00:00Z","content":"ok","http.response.status_code":float64(999)},"qa")
+ if err!=nil{t.Fatal(err)}
+ if event.HTTPStatusCode!=0{t.Fatalf("accepted invalid HTTP code: %d",event.HTTPStatusCode)}
+}

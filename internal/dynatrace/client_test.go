@@ -47,3 +47,11 @@ func TestDQLQuotedNamespace(t *testing.T){
  q:=DQL("evil\\\" | limit 1","qa",100)
  if !strings.Contains(q,`"evil\\\" | limit 1"`){t.Fatalf("DQL not escaped: %s",q)}
 }
+
+func TestDQLRequestsHTTPEnrichmentWithoutAggregatingUnrelatedMetrics(t *testing.T){
+ q:=DQL("apollo","tkgs-qa",1000)
+ for _,field:=range []string{"http.request.method","http.response.status_code","url.path","duration_ms"}{
+  if !strings.Contains(q,field){t.Fatalf("missing %s: %s",field,q)}
+ }
+ if strings.Contains(q,"summarize"){t.Fatalf("raw log query unexpectedly aggregates: %s",q)}
+}

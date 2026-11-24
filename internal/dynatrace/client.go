@@ -144,7 +144,7 @@ func(c *Client)call(ctx context.Context, method,path string,payload any)(queryRe
 func DQL(namespace,cluster string,limit int)string{
  filter:="fetch logs\n| filter k8s.namespace.name == "+strconv.Quote(namespace)
  if cluster!=""{filter+="\n| filter k8s.cluster.name == "+strconv.Quote(cluster)}
- filter+="\n| fields timestamp, content, loglevel, k8s.namespace.name, k8s.workload.name, k8s.deployment.name, k8s.statefulset.name, k8s.daemonset.name, k8s.job.name, k8s.cronjob.name, k8s.pod.name, k8s.container.name, dt.process.name, trace_id, request_id, id\n| sort timestamp asc\n| limit "+strconv.Itoa(limit)
+ filter+="\n| fields timestamp, content, loglevel, k8s.namespace.name, k8s.workload.name, k8s.deployment.name, k8s.statefulset.name, k8s.daemonset.name, k8s.job.name, k8s.cronjob.name, k8s.pod.name, k8s.container.name, dt.process.name, trace_id, request_id, id, http.request.method, http.method, http.response.status_code, http.status_code, url.path, http.route, http.target, duration, http.server.request.duration, duration_ms, elapsed_ms\n| sort timestamp asc\n| limit "+strconv.Itoa(limit)
  return filter
 }
 func(c *Client)Query(ctx context.Context,namespace,cluster string,start,end time.Time,limit int)(Result,error){
