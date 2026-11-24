@@ -58,14 +58,20 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
  if err!=nil{return false,fmt.Errorf("resolve shared timeframe path: %w",err)}
  if err=os.MkdirAll(filepath.Dir(configPath),0700);err!=nil{return false,fmt.Errorf("create timeframe directory: %w",err)}
  timeFile:=configPath+".time-range"
- broker:=NewBroker(c,opts.Source,opts.Namespace,opts.Cluster,opts.Since,opts.Refresh,opts.BufferLines)
- broker.timeFile=timeFile
- if err:=withLoading(stderr,loadingNamespaceMessage(opts),func()error{return broker.Bootstrap(ctx)});err!=nil{return false,fmt.Errorf("load namespace: %w",err)}
- if err:=broker.Status();err!=nil{fmt.Fprintln(stderr,"WARNING: Dynatrace returned incomplete history:",err)}
- go broker.Run(ctx)
+ catalog:=newScopeCatalog(opts.TimeClient,timeFile)
+ catalog.remember(opts.Cluster,opts.Namespace)
+ scopeCtx,stopScope,broker,loadErr:=startScope(ctx,c,opts,timeFile,stderr)
+ defer func(){stopScope()}()
+ notice:=""
+ canSwitch:=opts.TimeClient!=nil&&!opts.All&&opts.Pod==""&&opts.Service==""
+ if loadErr!=nil{
+  if !canSwitch{return false,fmt.Errorf("load namespace: %w",loadErr)}
+  notice="Load failed: "+loadErr.Error()+" · C/N to choose another scope"
+ }
  for {
-  apps:=broker.Apps()
-  if len(apps)==0&&!opts.All&&opts.Pod==""&&!(opts.Service!=""&&opts.ServiceExact){
+  currentBroker:=broker
+  apps:=currentBroker.Apps()
+  if len(apps)==0&&!canSwitch&&!opts.All&&opts.Pod==""&&!(opts.Service!=""&&opts.ServiceExact){
    return false,fmt.Errorf("no accessible logs in namespace %q during %s; check ingestion, scope, and --since",opts.Namespace,opts.Since)
   }
   var selected map[string]bool
@@ -89,11 +95,34 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    }
   default:
    picked=true
-   choice,err:=logui.PickAppsWithMonitor(apps,displaySourceCluster(opts),opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
-    return broker.Monitor(ctx,opts.MetricsClient)
-   },opts.MonitorOnStart)
+   var discover logui.ScopeDiscovery
+   if canSwitch {
+    cluster,namespace:=opts.Cluster,opts.Namespace
+    discover=func(ctx context.Context,kind string)([]string,string,error){return catalog.list(ctx,kind,cluster,namespace)}
+   }
+   choice,err:=logui.PickAppsWithScope(scopeCtx,apps,displaySourceCluster(opts),opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
+    return currentBroker.Monitor(ctx,opts.MetricsClient)
+   },opts.MonitorOnStart,discover,notice)
    if err!=nil{return false,err}
    if choice.Quit{return false,nil}
+   opts.MonitorOnStart=choice.MonitorEnabled
+   if choice.ScopeKind!="" {
+    next,err:=changeScope(opts,choice.ScopeKind,choice.ScopeValue)
+    if err!=nil{notice=err.Error();continue}
+    if next.Namespace==opts.Namespace&&next.Cluster==opts.Cluster&&loadErr==nil&&len(apps)>0{continue}
+    stopScope()
+    nextCtx,nextStop,nextBroker,nextErr:=startScope(ctx,c,next,timeFile,stderr)
+    if nextErr!=nil{
+     nextStop()
+     scopeCtx,stopScope=pollScope(ctx,currentBroker)
+     notice="Could not switch scope: "+nextErr.Error()+" · Previous scope retained"
+     continue
+    }
+    scopeCtx,stopScope,broker=nextCtx,nextStop,nextBroker
+    opts=next;loadErr=nil;catalog.remember(opts.Cluster,opts.Namespace)
+    notice=""
+    continue
+   }
    if len(choice.Workloads)==0&&len(choice.Pods)==0{continue}
    for _,pod:=range choice.Pods{selectedPods[pod]=true}
    record=choice.Record
@@ -124,7 +153,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    fmt.Fprintf(stderr,"Opened %d DynaR live log panes in Windows Terminal.\n",len(names))
    return false,nil
   }
-  list:=filterInventoryPods(broker.Inventory(selected),selectedPods)
+  list:=filterInventoryPods(currentBroker.Inventory(selected),selectedPods)
   if len(list)==0&&opts.Pod==""&&!opts.All&&!(opts.Service!=""&&opts.ServiceExact){fmt.Fprintln(stderr,"No streams available for selected workloads");continue}
   target:="all"
   if len(selectedPods)>0{
@@ -149,7 +178,7 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
   recordingPath:=""
   var capture func([]logui.Event)error
   if recorder!=nil{recordingPath=recorder.Path;capture=recorder.Write}
-  err=logui.Run(ctx,logui.Config{
+  err=logui.Run(scopeCtx,logui.Config{
    RecordingPath:recordingPath,Capture:capture,
    Title:"DynaR | "+displaySourceCluster(opts)+" | "+opts.Namespace,
    Namespace:opts.Namespace,Provider:displaySourceCluster(opts),Target:target,
@@ -159,27 +188,27 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    InitialFilter:initialQuery(opts),FilterFile:opts.FilterFile,
    TimeFile:timeFile,DefaultLookback:opts.Since,
    TimeRecords:func(ctx context.Context,from,to time.Time,force bool)(logui.TimeResult,error){
-    return broker.LoadTimeRange(ctx,opts.TimeClient,selected,selectedPods,from,to,force)
+    return currentBroker.LoadTimeRange(ctx,opts.TimeClient,selected,selectedPods,from,to,force)
    },
    RegexFilter:func()string{if opts.Regex{return opts.Search};return ""}(),
-   Stream:broker.Subscribe,
+   Stream:currentBroker.Subscribe,
    Inventory:func(ctx context.Context)([]logui.Source,error){
-    if err:=broker.Status();err!=nil{return nil,err}
-    return filterInventoryPods(broker.Inventory(selected),selectedPods),nil
+    if err:=currentBroker.Status();err!=nil{return nil,err}
+    return filterInventoryPods(currentBroker.Inventory(selected),selectedPods),nil
    },
    Search:func(ctx context.Context,text string)([]logui.Event,error){
-    found,err:=broker.Search(ctx,text,selected)
+    found,err:=currentBroker.Search(ctx,text,selected)
     if err!=nil{return nil,err}
     return filterSearchPods(found,selectedPods),nil
    },
    Trace:func(ctx context.Context,id string)([]logui.Event,error){
     // Distributed traces can cross workloads even when the picker currently
     // displays only one service. F6 investigates the complete namespace.
-    return broker.Trace(ctx,id,nil)
+    return currentBroker.Trace(ctx,id,nil)
    },
    Spans:spanCallback(opts.SpansClient),
-   ErrorLogs:broker.ErrorLogs,
-   LogDetails:broker.LogDetails,
+   ErrorLogs:currentBroker.ErrorLogs,
+   LogDetails:currentBroker.LogDetails,
   })
   if recorder!=nil{
    closeErr:=recorder.Close()

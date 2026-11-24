@@ -346,3 +346,9 @@ Time settings synchronize every 250 ms. A change cancels superseded local reques
 ## Loading indicators
 
 DynaR displays an animated activity indicator during initial namespace loading, update installation, historical time-range requests, searches, full log details, trace/span retrieval, AI analysis and monitor refreshes. Startup and command-line update waits also show elapsed time in interactive terminals. Indicators stop when operations finish or fail; no percentage is invented for queries of unknown duration. Redirected output uses a plain status line without animation. The indicators do not trigger extra Dynatrace requests.
+
+## Switch Kubernetes cluster or namespace
+
+From the interactive workload picker, press **C** to switch cluster or **N** to switch namespace. Type to filter, use Up/Down and Enter to select, or enter an exact name if it was not discovered. Esc cancels; Ctrl+U clears the search and Ctrl+R refreshes the selection dialog (cached results expire after two minutes). Choose **all clusters** to remove the cluster filter. The current Dynatrace source and credentials remain unchanged.
+
+Discovery uses accessible Grail log attributes over the last 24 hours (or the selected fixed F12 interval). It is not an authoritative Kubernetes inventory: quiet or inaccessible namespaces might not be listed. Recent choices in the current DynaR session are ranked first. Each scope change cancels previous polling and starts a separate log buffer; if the new query fails the previous scope is retained. F12 selection is preserved, while the workload picker uses the normal live lookback to discover workloads. Existing independently launched Windows Terminal panes keep their original scope. Return from a log viewer to the workload picker to switch scopes.
