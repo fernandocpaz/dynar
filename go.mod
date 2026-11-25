@@ -37,7 +37,7 @@ require (
 	golang.org/x/text v0.20.0 // indirect
 )
 
-require github.com/fernandocpaz/tailg v0.1.67-0.20261125180851-9ad782355dbb
+require github.com/fernandocpaz/tailg v0.1.67-0.20261125181004-1c1759fcdc90
 
 require github.com/zalando/go-keyring v0.2.8
 require golang.org/x/term v0.37.0
