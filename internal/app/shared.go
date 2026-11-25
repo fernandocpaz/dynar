@@ -102,9 +102,13 @@ func sharedViewer(ctx context.Context,c Collector,opts SharedOptions,stdout,stde
    }
    var openResources logui.ResourceOpen
    if opts.TimeClient!=nil{openResources=resourceBrowser(opts.TimeClient,opts.Cluster,opts.Namespace,timeFile)}
-   choice,err:=logui.PickAppsWithScope(scopeCtx,apps,displaySourceCluster(opts),opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
+   var inventoryClient *dynatrace.Client
+   if opts.TimeClient!=nil{inventoryClient,_=dynatrace.NewInventoryClient(opts.TimeClient.BaseURL,opts.TimeClient.Credentials)}
+   choice,err:=logui.PickAppsWithInventory(scopeCtx,apps,displaySourceCluster(opts),opts.Namespace,func(ctx context.Context)(logui.MonitorSnapshot,error){
     return currentBroker.Monitor(ctx,opts.MetricsClient)
-   },opts.MonitorOnStart,discover,notice,openResources)
+   },opts.MonitorOnStart,discover,notice,func(ctx context.Context)([]logui.App,string,error){
+    return currentBroker.PodTelemetry(ctx,inventoryClient,opts.MetricsClient)
+   },openResources)
    if err!=nil{return false,err}
    if choice.Quit{return false,nil}
    if choice.ScopeKind!="" {
